@@ -1,4 +1,5 @@
 import numpy as np
+import utils
 from zmqRemoteApi import RemoteAPIClient
 
 class UR10Simulation():
@@ -108,12 +109,17 @@ class UR10Simulation():
 
         return T_0_6[0:3, -1]
     
-    def computePose(self, M):
+    def computePose(self, recalculate_fkine=False):
+        #M = self.fkine(recalculate=recalculate_fkine)
+        cameraPose = np.array(self.sim.getObjectPose(self.cameraHandle + self.sim.handleflag_wxyzquat, -1))
+
         pose = np.zeros(6)
-        pose[0:3] = M[0:3, -1].ravel()
-        pose[3] = np.arctan2(M[2,1], M[2,2])
-        pose[4] = np.arctan2(-M[2,0], np.sqrt(M[2,1]**2 + M[2,2]**2))
-        pose[5] = np.arctan2(M[1,0], M[0,0])
+        #pose[0:3] = M[0:3, -1].ravel()
+        pose[0:3] = cameraPose[0:3]
+        # pose[3] = np.arctan2(M[2,1], M[2,2])
+        # pose[4] = np.arctan2(-M[2,0], np.sqrt(M[2,1]**2 + M[2,2]**2))
+        # pose[5] = np.arctan2(M[1,0], M[0,0])
+        pose[3], pose[4], pose[5] = utils.quat2euler(cameraPose[3:7])
 
         return pose
     

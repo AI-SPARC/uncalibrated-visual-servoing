@@ -12,7 +12,7 @@ from utils import detect4Circles, gaussianKernel
 
 TS = 0.05
 GAIN = 0.001
-T_MAX = 400
+T_MAX = 100
 ERROR_THRESHOLD = 0.01
 
 KERNEL_BANDWIDTH = 0.01
@@ -28,16 +28,16 @@ while (t := robot.sim.getSimulationTime()) < 3:
     robot.step()
 
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-#desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
+desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
+#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 f_old = None
 
 # initial parameters for kalman filter
 m = 8
 n = 6
-#X = np.random.rand(m*n, 1)
-X = np.zeros((m*n, 1))
+X = np.random.rand(m*n, 1)
+#X = np.zeros((m*n, 1))
 Z = np.zeros((m, 1))
 H = np.zeros((m, m*n))
 P = np.eye(m*n)
@@ -55,7 +55,7 @@ k = 0
 
 dp = np.zeros((6, 1))
 error = np.ones((len(f), 1))
-
+'''
 # Giving initial guess
 # Getting camera image and features
 
@@ -64,7 +64,7 @@ try:
     f = detect4Circles(image)
 except Exception as e:
     print(e) # only print problem in hough circles, but continue with older f
-    
+
 # Calculate image jacobian
 J_image = np.zeros((m, n)) # need to find
 #Z = robot.getCameraHeight(recalculate_fkine=True) # Considering fixed Z
@@ -85,10 +85,10 @@ for i in range(0, int(len(f)/2)):
     J_image[2*i+1, 5] = -u
 
 X = J_image.reshape((m*n, 1))
-
+'''
 first_run = True
 dp_real = np.zeros(6)
-old_pose = robot.fkine(recalculate=True)
+old_pose = robot.computePose(recalculate_fkine=True)
 
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
@@ -119,8 +119,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     Z[6,0] = f[6] - f_old[6]
     Z[7,0] = f[7] - f_old[7]
 
-    new_pose = robot.fkine(recalculate=True)
-    dp_real = robot.computePose(np.linalg.inv(old_pose)@new_pose)
+    new_pose = robot.computePose(recalculate_fkine=True)
+    dp_real = new_pose - old_pose
     if first_run:
         first_run = False
     else:
@@ -170,11 +170,11 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     error = f - desired_f
     # IBVS Control Law
     dp = - GAIN * np.linalg.pinv(J_image) @ error.reshape((m, 1))
-    dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
+    #dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
     #dp = np.array([0.0, 0.0, 0.0, 0.01, 0.0, 0.0]).reshape((6,1))
 
     # Invkine
-    dq = np.linalg.pinv(robot.jacobian()) @ dx
+    dq = np.linalg.pinv(robot.jacobian()) @ dp
     new_q = robot.getJointsPos() + dq.ravel() * TS
 
     #logging

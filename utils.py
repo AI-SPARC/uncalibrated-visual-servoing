@@ -127,3 +127,10 @@ def saveSampleImage(image, name):
 
 def gaussianKernel(e, bw):
     return np.exp(-0.5 * e**2 / bw**2)
+
+def quat2euler(h):
+    roll = np.arctan2(2*(h[0]*h[1] + h[2]*h[3]), 1 - 2*(h[1]**2 + h[2]**2))
+    pitch = np.arcsin(2*(h[0]*h[2] - h[3]*h[1]))
+    yaw = np.arctan2(2*(h[0]*h[3] + h[1]*h[2]), 1 - 2*(h[2]**2 + h[3]**2))
+
+    return (roll, pitch, yaw)

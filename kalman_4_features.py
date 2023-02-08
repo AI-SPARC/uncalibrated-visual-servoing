@@ -12,7 +12,7 @@ from utils import detect4Circles
 
 TS = 0.05
 GAIN = 0.001
-T_MAX = 400
+T_MAX = 60
 ERROR_THRESHOLD = 0.01
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
@@ -24,16 +24,16 @@ while (t := robot.sim.getSimulationTime()) < 3:
     robot.step()
 
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-#desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
+desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
+#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 f_old = None
 
 # initial parameters for kalman filter
 m = 8
 n = 6
-#X = np.random.rand(m*n, 1)
-X = np.zeros((m*n, 1))
+X = np.random.rand(m*n, 1)
+#X = np.zeros((m*n, 1))
 Z = np.zeros((m, 1))
 H = np.zeros((m, m*n))
 P = np.eye(m*n)
@@ -85,7 +85,7 @@ X = J_image.reshape((m*n, 1))
 '''
 first_run = True
 dp_real = np.zeros(6)
-old_pose = robot.fkine(recalculate=True)
+old_pose = robot.computePose(recalculate_fkine=True)
 
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
@@ -116,30 +116,30 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     Z[6,0] = f[6] - f_old[6]
     Z[7,0] = f[7] - f_old[7]
 
-    new_pose = robot.fkine(recalculate=True)
-    dp_real = robot.computePose(np.linalg.inv(old_pose)@new_pose)
+    new_pose = robot.computePose(recalculate_fkine=True)
+    dp_real = new_pose - old_pose
     if first_run:
         first_run = False
     else:
-        H = np.kron(np.eye(m), dp_real)
+        H = np.kron(np.eye(m), dp.ravel())
 
     print(dp_real)
     print(dp.ravel())
     # Correction
     K = P @ H.T @ np.linalg.inv(H @ P @ H.T + R)
     X = X + K @ (Z - H @ X)
-    P = (np.eye(m*n) - K @ H) @ P
+    P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T
 
     J_image = X.reshape((m, n))
 
     error = f - desired_f
     # IBVS Control Law
     dp = - GAIN * np.linalg.pinv(J_image) @ error.reshape((m, 1))
-    dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
+    #dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
     #dp = np.array([0.0, 0.0, 0.0, 0.01, 0.0, 0.0]).reshape((6,1))
 
     # Invkine
-    dq = np.linalg.pinv(robot.jacobian()) @ dx
+    dq = np.linalg.pinv(robot.jacobian()) @ dp
     new_q = robot.getJointsPos() + dq.ravel() * TS
 
     #logging
