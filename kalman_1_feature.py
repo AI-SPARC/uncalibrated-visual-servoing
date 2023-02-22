@@ -165,11 +165,11 @@ image_gray = cv2.GaussianBlur(image_gray, (5,5), 0)
 image_gray = cv2.flip(image_gray, 0)
 circles = cv2.HoughCircles(image_gray, cv2.HOUGH_GRADIENT, 1, 100, param1=50,param2=30,minRadius=0,maxRadius=0)
 if (circles is not None):
-    f_old = f
+    f_old = f.copy()
     f = np.array(circles[0][0][0:2])
 
     if f_old is None:
-        f_old = f
+        f_old = f.copy()
 else:
     print('problem in hough circles')
 u = f[0]

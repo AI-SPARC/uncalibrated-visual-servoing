@@ -93,11 +93,11 @@ old_pose = robot.computePose(recalculate_fkine=True)
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()
-    f_old = f
+    f_old = f.copy()
     try:
         f = detect4Circles(image)
         if (f_old is None):
-            f_old = f
+            f_old = f.copy()
     except Exception as e:
         print(e) # only print problem in hough circles, but continue with older f
         break
@@ -126,8 +126,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     else:
         H = np.kron(np.eye(m), dp.ravel())
 
-    print(dp_real)
-    print(dp.ravel())
+    #print(dp_real)
+    #print(dp.ravel())
     
     # Finding Bp using Cholesky
     Bp = np.linalg.cholesky(P)
@@ -138,14 +138,17 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     # Correction
     difference = np.inf
     epoch = 0
+    X_corrected = X.copy()
     while difference > THRESHOLD and epoch < EPOCH_MAX:        
         ## Correntropy kernels
         D = B_inv @ np.vstack([X, Z]) # Our y is Z
         W = B_inv @ np.vstack([np.eye(m*n), H])
-        e = D - W @ X
+        e = D - W @ X_corrected
         
         Cx = np.diag([gaussianKernel(e[i, 0], KERNEL_BANDWIDTH) for i in range(0, m*n)])
         Cy = np.diag([gaussianKernel(e[i, 0], KERNEL_BANDWIDTH) for i in range(m*n, m*n + m)])
+        #print(np.linalg.det(Cx))
+        #print(np.linalg.det(Cy))
 
         ## Compute optimal gain
         P_hat = Bp @ np.linalg.inv(Cx) @ Bp.T
@@ -154,13 +157,14 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
         K = P_hat @ H.T @ np.linalg.inv(H @ P_hat @ H.T + R_hat)
 
         ## Correct X
-        X_old = X
-        X = X + K @ (Z - H @ X)
+        X_corrected_old = X_corrected.copy()
+        X_corrected = X + K @ (Z - H @ X)
 
-        difference = np.linalg.norm(X - X_old)/np.linalg.norm(X_old)
+        difference = np.linalg.norm(X_corrected - X_corrected_old)/np.linalg.norm(X_corrected_old)
         epoch += 1
         if epoch == EPOCH_MAX:
             print("Reached max epoch")
+    X = X_corrected
 
     ## Correct P
     P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T

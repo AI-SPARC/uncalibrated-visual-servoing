@@ -90,11 +90,11 @@ old_pose = robot.computePose(recalculate_fkine=True)
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()
-    f_old = f
+    f_old = f.copy()
     try:
         f = detect4Circles(image)
         if (f_old is None):
-            f_old = f
+            f_old = f.copy()
     except Exception as e:
         print(e) # only print problem in hough circles, but continue with older f
         break
