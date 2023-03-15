@@ -86,7 +86,7 @@ X = J_image.reshape((m*n, 1))
 first_run = True
 dp_real = np.zeros(6)
 old_pose = robot.computePose(recalculate_fkine=True)
-
+'''
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()
@@ -180,3 +180,4 @@ plt.subplot(2, 1, 2)
 for i in range(m*n):
     plt.plot(t_log, X_log[:, i])
 plt.show()
+'''

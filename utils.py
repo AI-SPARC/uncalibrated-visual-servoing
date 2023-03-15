@@ -8,6 +8,49 @@ x = np.linspace(0, 1, 256)
 y = np.linspace(0, 1, 256)
 _X, _Y = np.meshgrid(x, y)
 
+def detectGreenCircle(image, method=CENTER_OF_MASS):
+    '''Detects a red, a green and a blue circle in image'''
+    image_flipped = cv2.flip(image, 0)
+
+    threshold = 250
+    
+    # Split color channels
+    image_green = np.logical_and(image_flipped[:,:,1] > threshold, np.logical_and(image_flipped[:,:,0] < threshold, image_flipped[:,:,2] < threshold))
+    
+    # Treatment for opencv
+    image_green = 255 * image_green.astype(np.uint8)
+    
+    f = np.zeros(2)
+
+    if method == CENTER_OF_MASS:
+        f[0] = 255 * np.sum(_X*image_green)/np.sum(image_green)
+        f[1] = 255 * np.sum(_Y*image_green)/np.sum(image_green)
+    elif method == HOUGH_CIRCLES:
+        # Detecting circles with Hough Circles
+        # REMEMBER: If maxRadius < 0, HOUGH_GRADIENT returns centers without finding the radius, we don't need radius
+        k = 0
+        k_max = 5
+
+        circles_green = None
+        while circles_green is None and k < k_max:
+            # A smoother border aids HoughCircles
+            image_green = cv2.GaussianBlur(image_green, (5,5), 0)
+            circles_green = cv2.HoughCircles(image_green, cv2.HOUGH_GRADIENT, 2, 100, param1=50,param2=30,minRadius=0,maxRadius=-1)
+            k += 1
+        
+        if (circles_green is None):
+            raise Exception('problem in hough circles')
+
+        # Defining features vector
+        f[0] = circles_green[0][0][0]
+        f[1] = circles_green[0][0][1]
+    
+    else:
+        raise Exception('Unknown method')
+
+
+    return f
+
 def detectRGBCircles(image, method=CENTER_OF_MASS):
     '''Detects a red, a green and a blue circle in image'''
     image_flipped = cv2.flip(image, 0)

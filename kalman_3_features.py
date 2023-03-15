@@ -15,7 +15,8 @@ GAIN = 0.25
 T_MAX = 400
 ERROR_THRESHOLD = 2
 
-q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+#q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 robot = UR10Simulation(q)
 
 # Waiting robot to arrive at starting location
@@ -79,6 +80,7 @@ for i in range(0, int(len(f)/2)):
 
 X = J_image.reshape((m*n, 1))
 '''
+
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()

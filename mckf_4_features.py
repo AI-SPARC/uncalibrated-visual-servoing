@@ -19,8 +19,8 @@ KERNEL_BANDWIDTH = 200
 THRESHOLD = 0.01
 EPOCH_MAX = 100
 
-#q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
-q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+#q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 robot = UR10Simulation(q)
 
 # Waiting robot to arrive at starting location
@@ -28,8 +28,8 @@ while (t := robot.sim.getSimulationTime()) < 3:
     robot.step()
 
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
+#desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
+desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 f_old = None
 
