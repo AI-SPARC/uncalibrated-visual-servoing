@@ -100,14 +100,13 @@ f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
 desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
 camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
 
-
 plt.plot(t_log, error_log[:, 0], color='blue')
 plt.plot(t_log, error_log[:, 1], color='red')
 plt.show()
 
 dataframe = pd.DataFrame(data={
     't': t_log,
-    'q__1': q_log[:, 0],
+    'q_1': q_log[:, 0],
     'q_2': q_log[:, 1],
     'q_3': q_log[:, 2],
     'q_4': q_log[:, 3],
@@ -125,4 +124,4 @@ dataframe = pd.DataFrame(data={
     'desired_f_2': desired_f_log[:, 1],
 })
 
-dataframe.to_csv('1_feat_ibvs.csv')
+dataframe.to_csv('results/data/1_feat_ibvs.csv')
