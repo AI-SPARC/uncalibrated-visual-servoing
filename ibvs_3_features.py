@@ -13,8 +13,8 @@ from utils import detectRGBCircles, saveSampleImage
 import pandas as pd
 
 TS = 0.05
-GAIN = 0.5
-T_MAX = 100
+GAIN = 0.75
+T_MAX = 30
 
 print("Instantiating robot")
 q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration

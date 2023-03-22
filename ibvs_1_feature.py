@@ -15,7 +15,7 @@ import pandas as pd
 
 TS = 0.05
 GAIN = 0.75
-T_MAX = 25
+T_MAX = 15
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration

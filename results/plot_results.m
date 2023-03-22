@@ -71,7 +71,7 @@ hold off
 %% Camera pose plot
 figure(3)
 camera = @(k) SE3(rpy2r(data.camera_roll(k), data.camera_pitch(k), data.camera_yaw(k)), [data.camera_x(k), data.camera_y(k), data.camera_z(k)]);
-tranimate(@(k) camera(k), 1:100:height(data), 'length', 0.5, 'retain', 'rgb', 'notext')
+tranimate(@(k) camera(k), 1:100:height(data), 'length', 0.05, 'retain', 'rgb', 'notext')
 hold on
 xlabel('X (m)')
 ylabel('Y (m)')
@@ -80,6 +80,8 @@ plot3(data.camera_x(1), data.camera_y(1), data.camera_z(1), 'o','MarkerFaceColor
 plot3(data.camera_x(end), data.camera_y(end), data.camera_z(end), '*','MarkerFaceColor','black','MarkerEdgeColor', 'black', 'MarkerSize', 10);
 plot3(data.camera_x, data.camera_y, data.camera_z, 'black', 'LineWidth', 2);
 grid on
+camproj perspective
+axis equal
 hold off
 
 %% Joints plot

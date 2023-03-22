@@ -10,9 +10,11 @@ from matplotlib import pyplot as plt
 from ur10_simulation import UR10Simulation
 from utils import detect4Circles, saveSampleImage
 
+import pandas as pd
+
 TS = 0.05
-GAIN = 0.5
-T_MAX = 50
+GAIN = 0.75
+T_MAX = 15
 
 print("Instantiating robot")
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
@@ -24,16 +26,20 @@ print("Moving robot to starting position")
 while (t := robot.sim.getSimulationTime()) < 3:
     robot.step()
 
+input()
+
+
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
 #desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
 desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 
 error_log = np.zeros((int(T_MAX/TS), len(f)))
-q_log = np.zeros((int(T_MAX/TS), 6))
 f_log = np.zeros((int(T_MAX/TS), len(f)))
+q_log = np.zeros((int(T_MAX/TS), 6))
 camera_log = np.zeros((int(T_MAX/TS), 6))
 t_log = np.zeros(int(T_MAX/TS))
+desired_f_log = np.zeros((int(T_MAX/TS), len(f)))
 k = 0
 
 while (t := robot.sim.getSimulationTime()) < T_MAX:
@@ -79,8 +85,13 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
     new_q = robot.getJointsPos() + dq.ravel() * TS
 
     #logging
+    q_log[k] = robot.getJointsPos()
+    camera_log[k] = robot.computePose()
+    f_log[k] = f
+    desired_f_log[k] = desired_f
     error_log[k] = error
     t_log[k] = k*TS
+
     k += 1
     print(t)
 
@@ -92,6 +103,10 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
 
 t_log = np.delete(t_log, [i for i in range(k, len(t_log))], axis=0)
 error_log = np.delete(error_log, [i for i in range(k, len(error_log))], axis=0)
+q_log = np.delete(q_log, [i for i in range(k, len(q_log))], axis=0)
+f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
+desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
+camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
 
 plt.plot(t_log, error_log[:, 0], color='blue')
 plt.plot(t_log, error_log[:, 1], color='red')
@@ -102,3 +117,37 @@ plt.plot(t_log, error_log[:, 5], color='black')
 plt.plot(t_log, error_log[:, 6], color='gray')
 plt.plot(t_log, error_log[:, 7], color='pink')
 plt.show()
+
+dataframe = pd.DataFrame(data={
+    't': t_log,
+    'q_1': q_log[:, 0],
+    'q_2': q_log[:, 1],
+    'q_3': q_log[:, 2],
+    'q_4': q_log[:, 3],
+    'q_5': q_log[:, 4],
+    'q_6': q_log[:, 5],
+    'camera_x': camera_log[:, 0],
+    'camera_y': camera_log[:, 1],
+    'camera_z': camera_log[:, 2],
+    'camera_roll': camera_log[:, 3],
+    'camera_pitch': camera_log[:, 4],
+    'camera_yaw': camera_log[:, 5],
+    'f_1': f_log[:, 0],
+    'f_2': f_log[:, 1],
+    'f_3': f_log[:, 2],
+    'f_4': f_log[:, 3],
+    'f_5': f_log[:, 4],
+    'f_6': f_log[:, 5],
+    'f_7': f_log[:, 6],
+    'f_8': f_log[:, 7],
+    'desired_f_1': desired_f_log[:, 0],
+    'desired_f_2': desired_f_log[:, 1],
+    'desired_f_3': desired_f_log[:, 2],
+    'desired_f_4': desired_f_log[:, 3],
+    'desired_f_5': desired_f_log[:, 4],
+    'desired_f_6': desired_f_log[:, 5],
+    'desired_f_7': desired_f_log[:, 6],
+    'desired_f_8': desired_f_log[:, 7],
+})
+
+dataframe.to_csv('results/data/4_feat_ibvs_tr.csv')

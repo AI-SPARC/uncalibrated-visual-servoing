@@ -6,16 +6,14 @@
 ##
 import numpy as np
 
-import cv2
-from zmqRemoteApi import RemoteAPIClient
-
 from ur10_simulation import UR10Simulation
 from matplotlib import pyplot as plt
 from utils import detectGreenCircle
+import pandas as pd
 
 TS = 0.05
 GAIN = 0.05
-T_MAX = 400
+T_MAX = 100
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
@@ -24,6 +22,8 @@ robot = UR10Simulation(q)
 # Waiting robot to arrive at starting location
 while (t := robot.sim.getSimulationTime()) < 3:
     robot.step()
+
+input()
 
 desired_f = np.array([256.0/2, 256.0/2]) # Desired position for feature
 
@@ -44,10 +44,17 @@ K = np.zeros((m*n, m))
 Q = np.eye(m*n)
 R = np.eye(m)
 
-f = None
+f = np.zeros(2)
 f_old = None
 
 dp = np.zeros((6, 1))
+
+error_log = np.zeros((int(T_MAX/TS), 2))
+f_log = np.zeros((int(T_MAX/TS), 2))
+q_log = np.zeros((int(T_MAX/TS), 6))
+camera_log = np.zeros((int(T_MAX/TS), 6))
+t_log = np.zeros(int(T_MAX/TS))
+desired_f_log = np.zeros((int(T_MAX/TS), 2))
 
 # Giving initial guess
 '''
@@ -76,6 +83,10 @@ J_image[1, 5] = -u
 
 X = J_image.reshape((m*n, 1))
 '''
+first_run = True
+dp_real = np.zeros(6)
+old_pose = robot.computePose(recalculate_fkine=True)
+
 while (t := robot.sim.getSimulationTime()) < T_MAX:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()
@@ -97,7 +108,12 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
     Z[0,0] = f[0] - f_old[0]
     Z[1,0] = f[1] - f_old[1]
 
-    H = np.kron(np.eye(m), dp.ravel())
+    new_pose = robot.computePose(recalculate_fkine=True)
+    dp_real = new_pose - old_pose
+    if first_run:
+        first_run = False
+    else:
+        H = np.kron(np.eye(m), dp.ravel())
 
     # Correction
     K = P @ H.T @ np.linalg.inv(H @ P @ H.T + R)
@@ -117,6 +133,10 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
     new_q = robot.getJointsPos() + dq.ravel() * TS
 
     #logging
+    q_log[k] = robot.getJointsPos()
+    camera_log[k] = robot.computePose()
+    f_log[k] = f
+    desired_f_log[k] = desired_f
     error_log[k] = error
     t_log[k] = k*TS
     k += 1
@@ -130,7 +150,33 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
 
 t_log = np.delete(t_log, [i for i in range(k, len(t_log))], axis=0)
 error_log = np.delete(error_log, [i for i in range(k, len(error_log))], axis=0)
+q_log = np.delete(q_log, [i for i in range(k, len(q_log))], axis=0)
+f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
+desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
+camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
 
 plt.plot(t_log, error_log[:, 0], color='blue')
 plt.plot(t_log, error_log[:, 1], color='red')
 plt.show()
+
+dataframe = pd.DataFrame(data={
+    't': t_log,
+    'q_1': q_log[:, 0],
+    'q_2': q_log[:, 1],
+    'q_3': q_log[:, 2],
+    'q_4': q_log[:, 3],
+    'q_5': q_log[:, 4],
+    'q_6': q_log[:, 5],
+    'camera_x': camera_log[:, 0],
+    'camera_y': camera_log[:, 1],
+    'camera_z': camera_log[:, 2],
+    'camera_roll': camera_log[:, 3],
+    'camera_pitch': camera_log[:, 4],
+    'camera_yaw': camera_log[:, 5],
+    'f_1': f_log[:, 0],
+    'f_2': f_log[:, 1],
+    'desired_f_1': desired_f_log[:, 0],
+    'desired_f_2': desired_f_log[:, 1],
+})
+
+dataframe.to_csv('results/data/1_feat_kf.csv')

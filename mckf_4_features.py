@@ -32,8 +32,8 @@ while (t := robot.sim.getSimulationTime()) < 3:
 input()
 
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
+#desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
+desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 f_old = None
 
@@ -266,4 +266,4 @@ dataframe = pd.DataFrame(data={
     'desired_f_8': desired_f_log[:, 7],
 })
 
-dataframe.to_csv('results/data/4_feat_mckf.csv')
+dataframe.to_csv('results/data/4_feat_mckf_tr.csv')
