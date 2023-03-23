@@ -1,9 +1,13 @@
-%data = readmatrix("data/4_feat_mckf.csv");
+clear
+clc
 
-SCENARIO = 4;
+data = readtable("data/3_feat_mckf.csv");
+
+SCENARIO = 3;
 
 %% Feature motion plot
 figure(1)
+%subplot(2,2,1)
 plot(data.f_1, data.f_2, 'r', 'LineWidth', 2);
 hold on
 plot(data.f_1(1), data.f_2(1), 'o','MarkerFaceColor','red','MarkerEdgeColor', 'red', 'MarkerSize', 10);
@@ -32,6 +36,7 @@ hold off
 
 %% Error plot
 figure(2)
+%subplot(2,2,2)
 error1 = data.desired_f_1 - data.f_1;
 error2 = data.desired_f_2 - data.f_2;
 plot(data.t, error1, 'LineWidth', 2);
@@ -70,6 +75,7 @@ hold off
 
 %% Camera pose plot
 figure(3)
+%subplot(2,2,3)
 camera = @(k) SE3(rpy2r(data.camera_roll(k), data.camera_pitch(k), data.camera_yaw(k)), [data.camera_x(k), data.camera_y(k), data.camera_z(k)]);
 tranimate(@(k) camera(k), 1:100:height(data), 'length', 0.05, 'retain', 'rgb', 'notext')
 hold on
@@ -86,6 +92,7 @@ hold off
 
 %% Joints plot
 figure(4)
+%subplot(2,2,4)
 plot(data.t, data.q_1, 'LineWidth', 2);
 hold on
 plot(data.t, data.q_2, 'LineWidth', 2);

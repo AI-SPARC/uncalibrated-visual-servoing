@@ -21,8 +21,8 @@ KERNEL_BANDWIDTH = 200
 THRESHOLD = 0.01
 EPOCH_MAX = 100
 
-q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
-#q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+#q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 robot = UR10Simulation(q)
 
 # Waiting robot to arrive at starting location

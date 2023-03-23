@@ -14,10 +14,12 @@ import pandas as pd
 
 TS = 0.05
 GAIN = 0.75
-T_MAX = 30
+T_MAX = 15
 
 print("Instantiating robot")
-q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+#q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
+
 robot = UR10Simulation(q)
 
 # Waiting robot to arrive at starting location
@@ -28,8 +30,8 @@ while (t := robot.sim.getSimulationTime()) < 3:
 input()
 
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-desired_f = np.array([149.5, 167.5, 126.5, 143.5, 100.5, 167.5]) # Desired position for feature
-#desired_f = np.array([153.5, 144.5, 125.5, 116.5, 99.5, 144.5]) # Desired position for feature
+#desired_f = np.array([149.5, 167.5, 126.5, 143.5, 100.5, 167.5]) # Desired position for feature
+desired_f = np.array([153.5, 144.5, 125.5, 116.5, 99.5, 144.5]) # Desired position for feature
 f = np.zeros(6)
 
 error_log = np.zeros((int(T_MAX/TS), len(f)))
