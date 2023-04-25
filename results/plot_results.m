@@ -1,9 +1,9 @@
 clear
 clc
 
-data = readtable("data/3_feat_mckf.csv");
+data = readtable("data/4_feat_mckf_tr.csv");
 
-SCENARIO = 3;
+SCENARIO = 4;
 
 %% Feature motion plot
 figure(1)
@@ -103,3 +103,22 @@ plot(data.t, data.q_6, 'LineWidth', 2);
 legend('q_1', 'q_2', 'q_3', 'q_4', 'q_5', 'q_6');
 xlabel('Time (s)')
 ylabel('Angle (rad)')
+
+%% Noise plot
+figure(4)
+subplot(4,2,1)
+histogram(data.noise_1, 30)
+subplot(4,2,2)
+histogram(data.noise_2, 30)
+subplot(4,2,3)
+histogram(data.noise_3, 30)
+subplot(4,2,4)
+histogram(data.noise_4, 30)
+subplot(4,2,5)
+histogram(data.noise_5, 30)
+subplot(4,2,6)
+histogram(data.noise_6, 30)
+subplot(4,2,7)
+histogram(data.noise_7, 30)
+subplot(4,2,8)
+histogram(data.noise_8, 30)

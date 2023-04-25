@@ -41,14 +41,16 @@ class SingletonMeta(type):
 class NoiseGenerator(metaclass=SingletonMeta):
     num_features: int = None
     generators: list = None
+    rhoGenerators: list = None
 
     mean: float = 5
-    std: float = 1
-    rho: float = 0.1
+    std: float = 0.25
+    rho: float = 0.25
 
     def __init__(self, num_features: int, mean: float = None, std: float = None, rho: float = None) -> None:
         self.num_features = num_features
         self.generators = []
+        self.rhoGenerators = []
 
         if mean is not None:
             self.mean = mean
@@ -57,8 +59,9 @@ class NoiseGenerator(metaclass=SingletonMeta):
         if rho is not None:
             self.rho = rho
 
-        for i in range(num_features):
+        for i in range(2*num_features):
             self.generators.append(Generator(PCG64(12345+i)))
+            self.rhoGenerators.append(Generator(PCG64(123456+i)))
 
     def getWhiteNoise(self) -> list:
         values = zeros(self.num_features)
@@ -70,6 +73,10 @@ class NoiseGenerator(metaclass=SingletonMeta):
     def getGaussianMixture(self) -> list:
         values = zeros(self.num_features)
         for i in range(self.num_features):
-            values[i] = (1 - self.rho) * self.generators[i].normal(loc=0.0, scale=self.std) + self.rho * self.generators[i + self.num_features].normal(loc=self.mean, scale=self.std)
+            rho = self.rhoGenerators[i].uniform(low=0, high=1)
+            if rho > self.rho:
+                values[i] = self.generators[i].normal(loc=0.0, scale=self.std) # Use white noise gaussian
+            else:
+                values[i] = self.generators[i + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
         
         return values

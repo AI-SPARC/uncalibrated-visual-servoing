@@ -15,13 +15,16 @@ from noise import NoiseGenerator
 import pandas as pd
 
 TS = 0.05
-GAIN = 0.001
-T_MAX = 100
+GAIN = 0.5
+T_MAX = 25
 ERROR_THRESHOLD = 0.01
 
-KERNEL_BANDWIDTH = 200
+KERNEL_BANDWIDTH = 500
 THRESHOLD = 0.01
 EPOCH_MAX = 100
+
+m = 8
+n = 6
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
@@ -38,10 +41,9 @@ desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
 #desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 f_old = None
+noise = np.zeros(m)
 
 # initial parameters for kalman filter
-m = 8
-n = 6
 #X = np.random.rand(m*n, 1)
 X = np.zeros((m*n, 1))
 Z = np.zeros((m, 1))
@@ -57,6 +59,7 @@ q_log = np.zeros((int(T_MAX/TS), 6))
 camera_log = np.zeros((int(T_MAX/TS), 6))
 t_log = np.zeros(int(T_MAX/TS))
 desired_f_log = np.zeros((int(T_MAX/TS), len(f)))
+noise_log = np.zeros((int(T_MAX/TS), len(f)))
 
 X_log = np.zeros((int(T_MAX/TS), m*n))
 k = 0
@@ -109,8 +112,9 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
         f = detect4Circles(image)
 
         # Adding noise
-        noise = noise_gen.getWhiteNoise()
-        #f += noise
+        #noise = noise_gen.getWhiteNoise()
+        noise = noise_gen.getGaussianMixture()
+        f += noise
 
         if (f_old is None):
             f_old = f.copy()
@@ -140,7 +144,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     if first_run:
         first_run = False
     else:
-        H = np.kron(np.eye(m), dp.ravel())
+        #H = np.kron(np.eye(m), dp.ravel())
+        H = np.kron(np.eye(m), dp_real)
 
     #print(dp_real)
     #print(dp.ravel())
@@ -204,6 +209,7 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     f_log[k] = f
     desired_f_log[k] = desired_f
     error_log[k] = error
+    noise_log[k] = noise
     t_log[k] = k*TS
     k += 1
     print('time: ' + str(t) + '; error: ' + str(np.linalg.norm(error)))
@@ -224,6 +230,7 @@ q_log = np.delete(q_log, [i for i in range(k, len(q_log))], axis=0)
 f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
 desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
 camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
+noise_log = np.delete(noise_log, [i for i in range(k, len(noise_log))], axis=0)
 
 _, _, vh = np.linalg.svd(J_image)
 w, v = np.linalg.eig(vh)
@@ -274,6 +281,14 @@ dataframe = pd.DataFrame(data={
     'desired_f_6': desired_f_log[:, 5],
     'desired_f_7': desired_f_log[:, 6],
     'desired_f_8': desired_f_log[:, 7],
+    'noise_1': noise_log[:, 0],
+    'noise_2': noise_log[:, 1],
+    'noise_3': noise_log[:, 2],
+    'noise_4': noise_log[:, 3],
+    'noise_5': noise_log[:, 4],
+    'noise_6': noise_log[:, 5],
+    'noise_7': noise_log[:, 6],
+    'noise_8': noise_log[:, 7]
 })
 
 dataframe.to_csv('results/data/4_feat_mckf_tr.csv')
