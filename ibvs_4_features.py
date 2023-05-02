@@ -16,6 +16,8 @@ TS = 0.05
 GAIN = 0.75
 T_MAX = 15
 
+PERSPECTIVE_ANGLE = 0.65
+
 print("Instantiating robot")
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
@@ -30,8 +32,8 @@ input()
 
 
 #desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-#desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
+desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
+#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 
 error_log = np.zeros((int(T_MAX/TS), len(f)))
@@ -58,7 +60,8 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
     J_image = np.zeros((len(f), 6)) # need to find
     #Z = robot.getCameraHeight(recalculate_fkine=True) # Considering fixed Z
     Z = robot.computeZ(4, recalculate_fkine=True)
-    focal = 2/(0.5/resolution[0])
+    #focal = 2/(0.5/resolution[0])
+    focal = resolution[0]/(2*np.tan(0.5*PERSPECTIVE_ANGLE))
     for i in range(0, int(len(f)/2)):
         u = f[2*i]
         v = f[2*i+1]

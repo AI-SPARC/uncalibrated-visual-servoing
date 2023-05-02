@@ -19,7 +19,9 @@ GAIN = 0.5
 T_MAX = 25
 ERROR_THRESHOLD = 0.01
 
-KERNEL_BANDWIDTH = 500
+PERSPECTIVE_ANGLE = 0.65
+
+KERNEL_BANDWIDTH = 20
 THRESHOLD = 0.01
 EPOCH_MAX = 100
 
@@ -80,7 +82,8 @@ except Exception as e:
 J_image = np.zeros((m, n)) # need to find
 #Z = robot.getCameraHeight(recalculate_fkine=True) # Considering fixed Z
 Z_camera = robot.computeZ(4, recalculate_fkine=True)
-focal = 2/(0.5/resolution[0])
+#focal = 2/(0.5/resolution[0])
+focal = resolution[0]/(2*np.tan(0.5*PERSPECTIVE_ANGLE))
 for i in range(0, int(len(f)/2)):
     u = f[2*i]
     v = f[2*i+1]
@@ -102,7 +105,7 @@ dp_real = np.zeros(6)
 old_pose = robot.computePose(recalculate_fkine=True)
 
 # Instance of noise generator
-noise_gen = NoiseGenerator(m)
+noise_gen = NoiseGenerator(m, rho=0.2)
 
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
@@ -144,8 +147,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     if first_run:
         first_run = False
     else:
-        #H = np.kron(np.eye(m), dp.ravel())
-        H = np.kron(np.eye(m), dp_real)
+        H = np.kron(np.eye(m), dp.ravel())
+        #H = np.kron(np.eye(m), dp_real)
 
     #print(dp_real)
     #print(dp.ravel())

@@ -10,12 +10,19 @@ from matplotlib import pyplot as plt
 from ur10_simulation import UR10Simulation
 from utils import detect4Circles
 
+from noise import NoiseGenerator
+
 import pandas as pd
 
 TS = 0.05
-GAIN = 0.001
-T_MAX = 60
+GAIN = 0.5
+T_MAX = 25
 ERROR_THRESHOLD = 0.01
+
+PERSPECTIVE_ANGLE = 0.65
+
+m = 8
+n = 6
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
@@ -33,9 +40,9 @@ desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
 f = np.zeros(8)
 f_old = None
 
+noise = np.zeros(m)
+
 # initial parameters for kalman filter
-m = 8
-n = 6
 X = np.random.rand(m*n, 1)
 #X = np.zeros((m*n, 1))
 Z = np.zeros((m, 1))
@@ -60,7 +67,7 @@ error = np.ones((len(f), 1))
 
 # Giving initial guess
 # Getting camera image and features
-'''
+
 image, resolution = robot.getCameraImage()
 try:
     f = detect4Circles(image)
@@ -72,6 +79,7 @@ J_image = np.zeros((m, n)) # need to find
 #Z = robot.getCameraHeight(recalculate_fkine=True) # Considering fixed Z
 Z_camera = robot.computeZ(4, recalculate_fkine=True)
 focal = 2/(0.5/resolution[0])
+#focal = resolution[0]/(2*np.tan(0.5*PERSPECTIVE_ANGLE))
 for i in range(0, int(len(f)/2)):
     u = f[2*i]
     v = f[2*i+1]
@@ -88,10 +96,13 @@ for i in range(0, int(len(f)/2)):
 
 X = J_image.reshape((m*n, 1))
 
-'''
+
 first_run = True
 dp_real = np.zeros(6)
 old_pose = robot.computePose(recalculate_fkine=True)
+
+# Instance of noise generator
+noise_gen = NoiseGenerator(m, rho=0.2)
 
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
@@ -99,6 +110,12 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     f_old = f.copy()
     try:
         f = detect4Circles(image)
+
+        # Adding noise
+        #noise = noise_gen.getWhiteNoise()
+        noise = noise_gen.getGaussianMixture()
+        f += noise
+
         if (f_old is None):
             f_old = f.copy()
     except Exception as e:
@@ -128,9 +145,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
         first_run = False
     else:
         H = np.kron(np.eye(m), dp.ravel())
+        #H = np.kron(np.eye(m), dp_real)
 
-    print(dp_real)
-    print(dp.ravel())
     # Correction
     K = P @ H.T @ np.linalg.inv(H @ P @ H.T + R)
     X = X + K @ (Z - H @ X)
@@ -141,11 +157,11 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     error = f - desired_f
     # IBVS Control Law
     dp = - GAIN * np.linalg.pinv(J_image) @ error.reshape((m, 1))
-    #dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
+    dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
     #dp = np.array([0.0, 0.0, 0.0, 0.01, 0.0, 0.0]).reshape((6,1))
 
     # Invkine
-    dq = np.linalg.pinv(robot.jacobian()) @ dp
+    dq = np.linalg.pinv(robot.jacobian()) @ dx
     new_q = robot.getJointsPos() + dq.ravel() * TS
 
     #logging
