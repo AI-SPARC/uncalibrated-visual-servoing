@@ -59,8 +59,10 @@ class NoiseGenerator(metaclass=SingletonMeta):
         if rho is not None:
             self.rho = rho
 
-        for i in range(2*num_features):
+        for i in range(3*num_features):
             self.generators.append(Generator(PCG64(12345+i)))
+        
+        for i in range(num_features):
             self.rhoGenerators.append(Generator(PCG64(123456+i)))
 
     def getWhiteNoise(self) -> list:
@@ -79,4 +81,17 @@ class NoiseGenerator(metaclass=SingletonMeta):
             else:
                 values[i] = self.generators[i + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
         
+        return values
+    
+    def getBimodalGaussianMixture(self) -> list:
+        values = zeros(self.num_features)
+        for i in range(self.num_features):
+            rho = self.rhoGenerators[i].uniform(low=0, high=1)
+            if rho > self.rho:
+                values[i] = self.generators[i].normal(loc=0.0, scale=self.std) # Use white noise gaussian
+            elif rho > self.rho/2:
+                values[i] = self.generators[i + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
+            else:
+                values[i] = self.generators[i + 2*self.num_features].normal(loc=-self.mean, scale=self.std) # use negative mean displaced gaussian
+
         return values

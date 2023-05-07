@@ -58,6 +58,7 @@ q_log = np.zeros((int(T_MAX/TS), 6))
 camera_log = np.zeros((int(T_MAX/TS), 6))
 t_log = np.zeros(int(T_MAX/TS))
 desired_f_log = np.zeros((int(T_MAX/TS), len(f)))
+noise_log = np.zeros((int(T_MAX/TS), len(f)))
 
 X_log = np.zeros((int(T_MAX/TS), m*n))
 k = 0
@@ -113,7 +114,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
 
         # Adding noise
         #noise = noise_gen.getWhiteNoise()
-        noise = noise_gen.getGaussianMixture()
+        #noise = noise_gen.getGaussianMixture()
+        noise = noise_gen.getBimodalGaussianMixture()
         f += noise
 
         if (f_old is None):
@@ -171,6 +173,7 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     f_log[k] = f
     desired_f_log[k] = desired_f
     error_log[k] = error
+    noise_log[k] = noise
     t_log[k] = k*TS
     k += 1
     print('time: ' + str(t) + '; error: ' + str(np.linalg.norm(error)))
@@ -191,6 +194,7 @@ q_log = np.delete(q_log, [i for i in range(k, len(q_log))], axis=0)
 f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
 desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
 camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
+noise_log = np.delete(noise_log, [i for i in range(k, len(noise_log))], axis=0)
 
 _, _, vh = np.linalg.svd(J_image)
 w, v = np.linalg.eig(vh)
@@ -241,6 +245,14 @@ dataframe = pd.DataFrame(data={
     'desired_f_6': desired_f_log[:, 5],
     'desired_f_7': desired_f_log[:, 6],
     'desired_f_8': desired_f_log[:, 7],
+    'noise_1': noise_log[:, 0],
+    'noise_2': noise_log[:, 1],
+    'noise_3': noise_log[:, 2],
+    'noise_4': noise_log[:, 3],
+    'noise_5': noise_log[:, 4],
+    'noise_6': noise_log[:, 5],
+    'noise_7': noise_log[:, 6],
+    'noise_8': noise_log[:, 7]
 })
 
 dataframe.to_csv('results/data/4_feat_kf.csv')

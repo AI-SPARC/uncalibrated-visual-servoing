@@ -116,7 +116,8 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
 
         # Adding noise
         #noise = noise_gen.getWhiteNoise()
-        noise = noise_gen.getGaussianMixture()
+        #noise = noise_gen.getGaussianMixture()
+        noise = noise_gen.getBimodalGaussianMixture()
         f += noise
 
         if (f_old is None):

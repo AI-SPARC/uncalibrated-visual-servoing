@@ -2,6 +2,7 @@ clear
 clc
 
 data = readtable("data/4_feat_mckf_tr.csv");
+%data = readtable("data/4_feat_kf.csv");
 
 SCENARIO = 4;
 
@@ -105,7 +106,7 @@ xlabel('Time (s)')
 ylabel('Angle (rad)')
 
 %% Noise plot
-figure(4)
+figure(5)
 subplot(4,2,1)
 histogram(data.noise_1, 30)
 subplot(4,2,2)
@@ -122,3 +123,37 @@ subplot(4,2,7)
 histogram(data.noise_7, 30)
 subplot(4,2,8)
 histogram(data.noise_8, 30)
+
+%% Stats
+% ISE
+ise(1) = error1' * error1;
+ise(2) = error2' * error2;
+ise(3) = error3' * error3;
+ise(4) = error4' * error4;
+ise(5) = error5' * error5;
+ise(6) = error6' * error6;
+ise(7) = error7' * error7;
+ise(8) = error8' * error8;
+disp(['ISE: ', num2str(norm(ise))])
+
+% IAE
+iae(1) = sum(abs(error1));
+iae(2) = sum(abs(error2));
+iae(3) = sum(abs(error3));
+iae(4) = sum(abs(error4));
+iae(5) = sum(abs(error5));
+iae(6) = sum(abs(error6));
+iae(7) = sum(abs(error7));
+iae(8) = sum(abs(error8));
+disp(['IAE: ', num2str(norm(iae))])
+
+% ITAE
+itae(1) = data.t' * abs(error1);
+itae(2) = data.t' * abs(error2);
+itae(3) = data.t' * abs(error3);
+itae(4) = data.t' * abs(error4);
+itae(5) = data.t' * abs(error5);
+itae(6) = data.t' * abs(error6);
+itae(7) = data.t' * abs(error7);
+itae(8) = data.t' * abs(error8);
+disp(['ITAE: ', num2str(norm(itae))])
