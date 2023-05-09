@@ -10,18 +10,21 @@ from matplotlib import pyplot as plt
 from ur10_simulation import UR10Simulation
 from utils import detect4Circles, saveSampleImage
 
+from noise import NoiseProfiler, NoiseType
+
 import pandas as pd
 
 TS = 0.05
-GAIN = 0.75
-T_MAX = 15
+GAIN = 0.5
+T_MAX = 25
 
 PERSPECTIVE_ANGLE = 0.65
 
 print("Instantiating robot")
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
-robot = UR10Simulation(q)
+robot = UR10Simulation()
+robot.start(q)
 
 # Waiting robot to arrive at starting location
 print("Moving robot to starting position")
@@ -36,19 +39,31 @@ desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
 #desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
 f = np.zeros(8)
 
+noise = np.zeros(8)
+
 error_log = np.zeros((int(T_MAX/TS), len(f)))
 f_log = np.zeros((int(T_MAX/TS), len(f)))
 q_log = np.zeros((int(T_MAX/TS), 6))
 camera_log = np.zeros((int(T_MAX/TS), 6))
 t_log = np.zeros(int(T_MAX/TS))
 desired_f_log = np.zeros((int(T_MAX/TS), len(f)))
+noise_log = np.zeros((int(T_MAX/TS), len(f)))
 k = 0
+
+# Instance of noise generator
+noise_gen = NoiseProfiler(8, NoiseType.GAUSSIAN_MIXTURE, rho=0.2)
 
 while (t := robot.sim.getSimulationTime()) < T_MAX:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()
     try:
-        f = detect4Circles(image, 0)
+        f = detect4Circles(image)
+
+        # Adding noise
+        #noise = noise_gen.getWhiteNoise()
+        #noise = noise_gen.getGaussianMixture()
+        noise = noise_gen.getBimodalGaussianMixture()
+        f += noise
     except Exception as e:
         print(e) # only print problem in hough circles, but continue with older f
         #saveSampleImage(image, 'sample.jpg')
@@ -93,6 +108,7 @@ while (t := robot.sim.getSimulationTime()) < T_MAX:
     f_log[k] = f
     desired_f_log[k] = desired_f
     error_log[k] = error
+    noise_log[k] = noise
     t_log[k] = k*TS
 
     k += 1
@@ -110,6 +126,7 @@ q_log = np.delete(q_log, [i for i in range(k, len(q_log))], axis=0)
 f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
 desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
 camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
+noise_log = np.delete(noise_log, [i for i in range(k, len(noise_log))], axis=0)
 
 plt.plot(t_log, error_log[:, 0], color='blue')
 plt.plot(t_log, error_log[:, 1], color='red')
@@ -151,6 +168,14 @@ dataframe = pd.DataFrame(data={
     'desired_f_6': desired_f_log[:, 5],
     'desired_f_7': desired_f_log[:, 6],
     'desired_f_8': desired_f_log[:, 7],
+    'noise_1': noise_log[:, 0],
+    'noise_2': noise_log[:, 1],
+    'noise_3': noise_log[:, 2],
+    'noise_4': noise_log[:, 3],
+    'noise_5': noise_log[:, 4],
+    'noise_6': noise_log[:, 5],
+    'noise_7': noise_log[:, 6],
+    'noise_8': noise_log[:, 7]
 })
 
-dataframe.to_csv('results/data/4_feat_ibvs_tr.csv')
+dataframe.to_csv('results/data/rho_20_0/ibvs.csv')

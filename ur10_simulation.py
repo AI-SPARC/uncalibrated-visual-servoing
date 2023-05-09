@@ -3,25 +3,56 @@ import utils
 from zmqRemoteApi import RemoteAPIClient
 
 class UR10Simulation():
-    def __init__(self, q=None):
+    def __init__(self, client: object = None, sim: object = None) -> None:
         # New instance of API client
-        self.client = RemoteAPIClient()
-        self.sim = self.client.getObject('sim')
+        if client is None:
+            client = RemoteAPIClient()
+
+        if sim is None:
+            sim = client.getObject('sim')
         
+        self.client = client
+        self.sim = sim
+
         self.client.setStepping(True)
-        self.sim.startSimulation()
-        print("Starting simulation")
 
         # Getting joint handles and setting home position
         self.joints = [self.sim.getObject('./joint', {'index': i}) for i in range(6)]
         self.cameraHandle = self.sim.getObject('./sensor')
-        if q is None:
-            q = np.zeros(6)
-        self.q = q
+        
+        self.q = np.zeros(6)
         self.dq = np.zeros(6)
-        self.setJointsPos(q)
-        self.T_0_6, self.T_0_5, self.T_0_4, self.T_0_3, self.T_0_2, self.T_0_1 = self.fkine(recalculate=True, all_transforms=True)
+
+        self.perspective_angle = 65
     
+    def start(self, q: list = None):
+        
+        if q is not None:
+            self.q = q.copy()
+            
+            # Setting initial values
+            self.setJointsPos(self.q)
+            self.sim.setJointPosition(self.joints[0], self.q[0])
+            self.sim.setJointPosition(self.joints[1], self.q[1])
+            self.sim.setJointPosition(self.joints[2], self.q[2])
+            self.sim.setJointPosition(self.joints[3], self.q[3])
+            self.sim.setJointPosition(self.joints[4], self.q[4])
+            self.sim.setJointPosition(self.joints[5], self.q[5])
+        
+        else:
+            self.q = self.getJointsPos()
+
+        self.sim.startSimulation()
+        print("Starting simulation")
+
+        self.step()
+
+        self.T_0_6, self.T_0_5, self.T_0_4, self.T_0_3, self.T_0_2, self.T_0_1 = self.fkine(recalculate=True, all_transforms=True)
+
+    def stop(self):
+        self.sim.stopSimulation()
+        print("Stopping simulation")
+
     def setJointsPos(self, q):
         self.sim.setJointTargetPosition(self.joints[0], q[0])
         self.sim.setJointTargetPosition(self.joints[1], q[1])

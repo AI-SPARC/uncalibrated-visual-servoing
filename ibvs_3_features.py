@@ -20,7 +20,8 @@ print("Instantiating robot")
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 
-robot = UR10Simulation(q)
+robot = UR10Simulation()
+robot.start(q)
 
 # Waiting robot to arrive at starting location
 print("Moving robot to starting position")

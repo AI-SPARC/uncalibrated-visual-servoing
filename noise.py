@@ -1,69 +1,67 @@
 from threading import Lock, Thread
-from numpy.random import Generator, PCG64
+from numpy.random import Generator, PCG64, default_rng
 from numpy import zeros
+from enum import Enum
 
-class SingletonMeta(type):
-    """
-    This is a thread-safe implementation of Singleton.
-    https://refactoring.guru/design-patterns/singleton/python/example#example-1
-    """
+class NoiseType(Enum):
+    WHITE_NOISE = 1
+    GAUSSIAN_MIXTURE = 2
+    GAUSSIAN_BIMODAL = 3
+    ALPHA_STABLE = 4
 
-    _instances = {}
+    @classmethod
+    def numberOfGenerators(cls, type) -> int:
+        num = 0
+        if type == cls.WHITE_NOISE:
+            num = 1
+        elif type == cls.GAUSSIAN_MIXTURE:
+            num = 2
+        elif type == cls.GAUSSIAN_BIMODAL:
+            num = 3
+        return num
 
-    _lock: Lock = Lock()
-    """
-    We now have a lock object that will be used to synchronize threads during
-    first access to the Singleton.
-    """
+class NoiseProfiler():
 
-    def __call__(cls, *args, **kwargs):
-        """
-        Possible changes to the value of the `__init__` argument do not affect
-        the returned instance.
-        """
-        # Now, imagine that the program has just been launched. Since there's no
-        # Singleton instance yet, multiple threads can simultaneously pass the
-        # previous conditional and reach this point almost at the same time. The
-        # first of them will acquire lock and will proceed further, while the
-        # rest will wait here.
-        with cls._lock:
-            # The first thread to acquire the lock, reaches this conditional,
-            # goes inside and creates the Singleton instance. Once it leaves the
-            # lock block, a thread that might have been waiting for the lock
-            # release may then enter this section. But since the Singleton field
-            # is already initialized, the thread won't create a new object.
-            if cls not in cls._instances:
-                instance = super().__call__(*args, **kwargs)
-                cls._instances[cls] = instance
-        return cls._instances[cls]
-
-
-class NoiseGenerator(metaclass=SingletonMeta):
-    num_features: int = None
-    generators: list = None
-    rhoGenerators: list = None
-
-    mean: float = 5
-    std: float = 0.25
-    rho: float = 0.25
-
-    def __init__(self, num_features: int, mean: float = None, std: float = None, rho: float = None) -> None:
+    def __init__(self, num_features: int, noise_type: enumerate, seed: int = None, **noise_params) -> None:
         self.num_features = num_features
         self.generators = []
-        self.rhoGenerators = []
-
-        if mean is not None:
-            self.mean = mean
-        if std is not None:
-            self.std = std
-        if rho is not None:
-            self.rho = rho
-
-        for i in range(3*num_features):
-            self.generators.append(Generator(PCG64(12345+i)))
         
-        for i in range(num_features):
-            self.rhoGenerators.append(Generator(PCG64(123456+i)))
+        self.noise_type = noise_type
+
+        if noise_type == NoiseType.WHITE_NOISE or noise_type == NoiseType.GAUSSIAN_MIXTURE or noise_type == NoiseType.GAUSSIAN_BIMODAL:
+            self.std = noise_params['std'] if "std" in noise_params else 0.25
+        
+            if noise_type == NoiseType.GAUSSIAN_MIXTURE or noise_type == NoiseType.GAUSSIAN_BIMODAL:
+                self.mean = noise_params['mean'] if "mean" in noise_params else 5
+                self.rho = noise_params['rho'] if "rho" in noise_params else 0.2
+
+                self.rhoGenerators = []
+
+                for i in range(num_features):
+                    if seed is None:
+                        self.rhoGenerators.append(default_rng())    
+                    else:
+                        self.rhoGenerators.append(Generator(PCG64(2*seed+i)))
+
+        for i in range(NoiseType.numberOfGenerators(noise_type) * num_features):
+            if seed is None:
+                self.generators.append(default_rng())    
+            else:
+                self.generators.append(Generator(PCG64(seed+i)))
+
+
+    def getNoise(self) -> list :
+
+        if self.noise_type == NoiseType.WHITE_NOISE:
+            values = self.getWhiteNoise()
+        elif self.noise_type == NoiseType.GAUSSIAN_MIXTURE:
+            values = self.getGaussianMixture()
+        elif self.noise_type == NoiseType.GAUSSIAN_BIMODAL:
+            values = self.getBimodalGaussianMixture()
+        elif self.noise_type == NoiseType.ALPHA_STABLE:
+            values = self.getAlphaStable()
+
+        return values
 
     def getWhiteNoise(self) -> list:
         values = zeros(self.num_features)
@@ -94,4 +92,8 @@ class NoiseGenerator(metaclass=SingletonMeta):
             else:
                 values[i] = self.generators[i + 2*self.num_features].normal(loc=-self.mean, scale=self.std) # use negative mean displaced gaussian
 
+        return values
+    
+    def getAlphaStable(self) -> list:
+        values = zeros(self.num_features)
         return values

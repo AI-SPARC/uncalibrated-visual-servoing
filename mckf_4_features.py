@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from ur10_simulation import UR10Simulation
 from utils import detect4Circles, gaussianKernel
 
-from noise import NoiseGenerator
+from noise import NoiseProfiler, NoiseType
 
 import pandas as pd
 
@@ -30,11 +30,8 @@ n = 6
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
-robot = UR10Simulation(q)
-
-# Waiting robot to arrive at starting location
-while (t := robot.sim.getSimulationTime()) < 3:
-    robot.step()
+robot = UR10Simulation()
+robot.start(q)
 
 input()
 
@@ -105,7 +102,7 @@ dp_real = np.zeros(6)
 old_pose = robot.computePose(recalculate_fkine=True)
 
 # Instance of noise generator
-noise_gen = NoiseGenerator(m, rho=0.2)
+noise_gen = NoiseProfiler(m, NoiseType.GAUSSIAN_MIXTURE, rho=0.)
 
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
@@ -295,4 +292,4 @@ dataframe = pd.DataFrame(data={
     'noise_8': noise_log[:, 7]
 })
 
-dataframe.to_csv('results/data/4_feat_mckf_tr.csv')
+dataframe.to_csv('results/data/rho_00_0/mckf.csv')
