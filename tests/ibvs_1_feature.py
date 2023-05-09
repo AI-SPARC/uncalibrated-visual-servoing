@@ -7,11 +7,14 @@
 import numpy as np
 
 from zmqRemoteApi import RemoteAPIClient
+import pandas as pd
+from matplotlib import pyplot as plt
+
+import sys
+sys.path.append("..")
 
 from ur10_simulation import UR10Simulation
-from matplotlib import pyplot as plt
 from utils import detectGreenCircle
-import pandas as pd
 
 TS = 0.05
 GAIN = 0.75

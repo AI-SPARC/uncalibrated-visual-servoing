@@ -7,6 +7,9 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
+import sys
+sys.path.append("..")
+
 from ur10_simulation import UR10Simulation
 from utils import detectRGBCircles, saveSampleImage
 

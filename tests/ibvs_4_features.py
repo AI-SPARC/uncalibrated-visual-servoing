@@ -6,13 +6,15 @@
 ##
 import numpy as np
 from matplotlib import pyplot as plt
+import pandas as pd
+
+import sys
+sys.path.append("..")
 
 from ur10_simulation import UR10Simulation
 from utils import detect4Circles, saveSampleImage
 
 from noise import NoiseProfiler, NoiseType
-
-import pandas as pd
 
 TS = 0.05
 GAIN = 0.5

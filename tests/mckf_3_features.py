@@ -6,45 +6,44 @@
 ##
 import numpy as np
 from matplotlib import pyplot as plt
-
-from ur10_simulation import UR10Simulation
-from utils import detect4Circles, gaussianKernel
-
-from noise import NoiseProfiler, NoiseType
-
 import pandas as pd
 
+import sys
+sys.path.append("..")
+
+from ur10_simulation import UR10Simulation
+from utils import detectRGBCircles, gaussianKernel
+
 TS = 0.05
-GAIN = 0.5
-T_MAX = 25
+GAIN = 0.001
+T_MAX = 100
 ERROR_THRESHOLD = 0.01
 
-PERSPECTIVE_ANGLE = 0.65
-
-KERNEL_BANDWIDTH = 20
+KERNEL_BANDWIDTH = 200
 THRESHOLD = 0.01
 EPOCH_MAX = 100
-
-m = 8
-n = 6
 
 #q = np.array([0.0, 0.0, np.pi/2, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0]) # Desired starting configuration
 robot = UR10Simulation()
 robot.start(q)
 
+# Waiting robot to arrive at starting location
+while (t := robot.sim.getSimulationTime()) < 3:
+    robot.step()
+
 input()
 
-#desired_f = np.array([148.0, 150.0, 128.0, 128.0, 108.0, 150.0]) # Desired position for feature
-desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
-f = np.zeros(8)
+desired_f = np.array([153.5, 144.5, 125.5, 116.5, 99.5, 144.5]) # Desired position for feature
+
+f = np.zeros(6)
 f_old = None
-noise = np.zeros(m)
 
 # initial parameters for kalman filter
-#X = np.random.rand(m*n, 1)
-X = np.zeros((m*n, 1))
+m = 6
+n = 6
+X = np.random.rand(m*n, 1)
+#X = np.zeros((m*n, 1))
 Z = np.zeros((m, 1))
 H = np.zeros((m, m*n))
 P = np.eye(m*n)
@@ -58,14 +57,13 @@ q_log = np.zeros((int(T_MAX/TS), 6))
 camera_log = np.zeros((int(T_MAX/TS), 6))
 t_log = np.zeros(int(T_MAX/TS))
 desired_f_log = np.zeros((int(T_MAX/TS), len(f)))
-noise_log = np.zeros((int(T_MAX/TS), len(f)))
 
 X_log = np.zeros((int(T_MAX/TS), m*n))
 k = 0
 
 dp = np.zeros((6, 1))
 error = np.ones((len(f), 1))
-
+'''
 # Giving initial guess
 # Getting camera image and features
 
@@ -78,9 +76,8 @@ except Exception as e:
 # Calculate image jacobian
 J_image = np.zeros((m, n)) # need to find
 #Z = robot.getCameraHeight(recalculate_fkine=True) # Considering fixed Z
-Z_camera = robot.computeZ(4, recalculate_fkine=True)
-#focal = 2/(0.5/resolution[0])
-focal = resolution[0]/(2*np.tan(0.5*PERSPECTIVE_ANGLE))
+Z_camera = robot.computeZ(3, recalculate_fkine=True)
+focal = 2/(0.5/resolution[0])
 for i in range(0, int(len(f)/2)):
     u = f[2*i]
     v = f[2*i+1]
@@ -96,27 +93,17 @@ for i in range(0, int(len(f)/2)):
     J_image[2*i+1, 5] = -u
 
 X = J_image.reshape((m*n, 1))
-
+'''
 first_run = True
 dp_real = np.zeros(6)
 old_pose = robot.computePose(recalculate_fkine=True)
-
-# Instance of noise generator
-noise_gen = NoiseProfiler(m, NoiseType.GAUSSIAN_MIXTURE, rho=0.)
 
 while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) > ERROR_THRESHOLD:
     # Getting camera image and features
     image, resolution = robot.getCameraImage()
     f_old = f.copy()
     try:
-        f = detect4Circles(image)
-
-        # Adding noise
-        #noise = noise_gen.getWhiteNoise()
-        #noise = noise_gen.getGaussianMixture()
-        noise = noise_gen.getBimodalGaussianMixture()
-        f += noise
-
+        f = detectRGBCircles(image)
         if (f_old is None):
             f_old = f.copy()
     except Exception as e:
@@ -137,8 +124,6 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     Z[3,0] = f[3] - f_old[3]
     Z[4,0] = f[4] - f_old[4]
     Z[5,0] = f[5] - f_old[5]
-    Z[6,0] = f[6] - f_old[6]
-    Z[7,0] = f[7] - f_old[7]
 
     new_pose = robot.computePose(recalculate_fkine=True)
     dp_real = new_pose - old_pose
@@ -146,7 +131,6 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
         first_run = False
     else:
         H = np.kron(np.eye(m), dp.ravel())
-        #H = np.kron(np.eye(m), dp_real)
 
     #print(dp_real)
     #print(dp.ravel())
@@ -195,7 +179,7 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
 
     error = f - desired_f
     # IBVS Control Law
-    dp = - GAIN * np.linalg.pinv(J_image) @ error.reshape((m, 1))
+    dp = - GAIN * np.linalg.inv(J_image) @ error.reshape((m, 1))
     dx = np.kron(np.eye(2), robot.getCameraRotation().T) @ dp
     #dp = np.array([0.0, 0.0, 0.0, 0.01, 0.0, 0.0]).reshape((6,1))
 
@@ -210,7 +194,6 @@ while ((t := robot.sim.getSimulationTime()) < T_MAX) and np.linalg.norm(error) >
     f_log[k] = f
     desired_f_log[k] = desired_f
     error_log[k] = error
-    noise_log[k] = noise
     t_log[k] = k*TS
     k += 1
     print('time: ' + str(t) + '; error: ' + str(np.linalg.norm(error)))
@@ -231,7 +214,6 @@ q_log = np.delete(q_log, [i for i in range(k, len(q_log))], axis=0)
 f_log = np.delete(f_log, [i for i in range(k, len(f_log))], axis=0)
 desired_f_log = np.delete(desired_f_log, [i for i in range(k, len(desired_f_log))], axis=0)
 camera_log = np.delete(camera_log, [i for i in range(k, len(camera_log))], axis=0)
-noise_log = np.delete(noise_log, [i for i in range(k, len(noise_log))], axis=0)
 
 _, _, vh = np.linalg.svd(J_image)
 w, v = np.linalg.eig(vh)
@@ -245,8 +227,6 @@ plt.plot(t_log, error_log[:, 2], color='green')
 plt.plot(t_log, error_log[:, 3], color='yellow')
 plt.plot(t_log, error_log[:, 4], color='purple')
 plt.plot(t_log, error_log[:, 5], color='black')
-plt.plot(t_log, error_log[:, 6], color='gray')
-plt.plot(t_log, error_log[:, 7], color='pink')
 plt.subplot(2, 1, 2)
 for i in range(m*n):
     plt.plot(t_log, X_log[:, i])
@@ -272,24 +252,12 @@ dataframe = pd.DataFrame(data={
     'f_4': f_log[:, 3],
     'f_5': f_log[:, 4],
     'f_6': f_log[:, 5],
-    'f_7': f_log[:, 6],
-    'f_8': f_log[:, 7],
     'desired_f_1': desired_f_log[:, 0],
     'desired_f_2': desired_f_log[:, 1],
     'desired_f_3': desired_f_log[:, 2],
     'desired_f_4': desired_f_log[:, 3],
     'desired_f_5': desired_f_log[:, 4],
     'desired_f_6': desired_f_log[:, 5],
-    'desired_f_7': desired_f_log[:, 6],
-    'desired_f_8': desired_f_log[:, 7],
-    'noise_1': noise_log[:, 0],
-    'noise_2': noise_log[:, 1],
-    'noise_3': noise_log[:, 2],
-    'noise_4': noise_log[:, 3],
-    'noise_5': noise_log[:, 4],
-    'noise_6': noise_log[:, 5],
-    'noise_7': noise_log[:, 6],
-    'noise_8': noise_log[:, 7]
 })
 
-dataframe.to_csv('results/data/rho_00_0/mckf.csv')
+dataframe.to_csv('results/data/3_feat_mckf.csv')
