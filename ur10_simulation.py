@@ -7,15 +7,15 @@ import logging
 class UR10Simulation():
     def __init__(self, logger: object = None) -> None:
         # New instance of API client
-        client = RemoteAPIClient()
+        self.client = RemoteAPIClient()
 
-        sim = client.getObject('sim')
+        self.sim = self.client.getObject('sim')
 
-        client.setStepping(True)
+        self.client.setStepping(True)
 
         # Getting joint handles and setting home position
-        self.joints = [sim.getObject('./joint', {'index': i}) for i in range(6)]
-        self.cameraHandle = sim.getObject('./sensor')
+        self.joints = [self.sim.getObject('./joint', {'index': i}) for i in range(6)]
+        self.cameraHandle = self.sim.getObject('./sensor')
         
         self.q = np.zeros(6)
         self.dq = np.zeros(6)
@@ -27,17 +27,11 @@ class UR10Simulation():
             self.logger.setLevel(logger.level)
             for handler in logger.handlers:
                 self.logger.addHandler(handler)
-
-        del client # It is necessary because when we stop/start, the client is having problem with timestep
     
     def __del__(self) -> None:
-        self.stop()
+        del self.client
 
     def start(self, q: list = None):
-        # It is necessary because when we stop/start, the client is having problem with timestep
-        self.client = RemoteAPIClient()
-        self.sim = self.client.getObject('sim')
-
         if q is not None:
             self.q = q.copy()
             
@@ -69,8 +63,6 @@ class UR10Simulation():
             sleep(0.1)
         self.logger.debug("Simulation stopped")
 
-        # It is necessary because when we stop/start, the client is having problem with timestep
-        del self.client
 
     def setJointsPos(self, q):
         self.sim.setJointTargetPosition(self.joints[0], q[0])
