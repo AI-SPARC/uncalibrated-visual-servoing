@@ -1,5 +1,5 @@
 {
-    "log_level" : "DEBUG",
+    "log_level" : "INFO",
     "experiments": {
         "dt": 0.05,
         "t_max": 5,
@@ -20,7 +20,7 @@
     "noise": {
         "type": "GAUSSIAN_MIXTURE",
         "noise_params": {    
-            "mean": 5,
+            "mean": 10,
             "std": 0.25
         },
         "seed": null

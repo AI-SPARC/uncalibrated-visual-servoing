@@ -64,7 +64,7 @@ with open("config.json", "r") as config_file:
 
         method_name = estimator_config["method"]
         if method_name in [e.name for e in Method]:
-            method = Method[method_name].value
+            method = Method[method_name]
         else: 
             logger.critical("Estimation method " + method_name + " unknown.")
             sys.exit()
@@ -79,7 +79,7 @@ with open("config.json", "r") as config_file:
 
         noise_type_name = noise_config["type"]
         if noise_type_name in [e.name for e in NoiseType]:
-            noise_type = NoiseType[noise_type_name].value
+            noise_type = NoiseType[noise_type_name]
         else: 
             logger.critical("Noise type " + noise_type_name + " unknown.")
             sys.exit()
@@ -96,8 +96,6 @@ experiments = []
 first_experiment = True
 file_header = True
 
-robot = UR10Simulation(logger=logger)
-
 k = 0
 # Preparing experiment queue
 for rho in rho_list:
@@ -107,9 +105,10 @@ for rho in rho_list:
         # Noise generation
         noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, noise_params=noise_params)
     
+        robot = UR10Simulation(logger=logger)
         experiment = Experiment(q_start=q, desired_f=desired_f, noise_prof=noise_prof, t_s=dt, t_max=t_max, ibvs_gain=ibvs_gain, robot=robot, logger=logger, method=method, method_params=method_params)
 
-        logger.info("Experiment " + str(k+1) + " of " + str(len(rho_list*epoch)))
+        logger.info("Experiment " + str(k+1) + " of " + str(len(rho_list)*epoch))
         logger.info("Noise params :" + str(noise_params))
         
         # Running experiment
@@ -164,3 +163,7 @@ for rho in rho_list:
             first_experiment = False
     
         dataframe.to_csv('results/data/' + out_filename + '.csv', mode='a', index=False, header=file_header)
+
+        k = k+1
+
+logger.info("Ending experiment batch")
