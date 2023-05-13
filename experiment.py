@@ -1,9 +1,10 @@
 from enum import Enum
 from utils import detect4Circles, gaussianKernel
 import numpy as np
+import logging
 
 class Method(Enum):
-    IBVS = 1
+    ANALYTICAL = 1
     KF = 2
     MCKF = 3
 
@@ -12,7 +13,7 @@ class ExperimentStatus(Enum):
     ERROR = 1
 
 class Experiment:
-    def __init__(self, q_start: list, desired_f: list, noise_prof: object = None, t_s: float = 0.05, t_max: float = 25, ibvs_gain: float = 0.5, robot: object = None, method: enumerate = Method.IBVS, **method_params) -> None:
+    def __init__(self, q_start: list, desired_f: list, noise_prof: object, t_s: float, t_max: float, ibvs_gain: float, robot: object, method: enumerate, logger: object = None, **method_params) -> None:
        
         self.q_start = q_start
         self.desired_f = desired_f
@@ -31,6 +32,11 @@ class Experiment:
                 self.fpi_threshold = method_params['fpi_threshold'] if "fpi_threshold" in method_params else 0.01
                 self.fpi_epoch_max = method_params['fpi_epoch_max'] if "fpi_epoch_max" in method_params else 100
         
+        self.logger = logging.getLogger(__name__)
+        if logger is not None:
+            self.logger.setLevel(logger.level)
+            for handler in logger.handlers:
+                self.logger.addHandler(handler)
 
     def run(self) -> list:
         self.robot.start(self.q_start)
@@ -71,7 +77,7 @@ class Experiment:
                 try:
                     f = detect4Circles(image)
                 except Exception as e:
-                    print(e) # only print problem in hough circles, but continue with older f
+                    self.logger.error(e) # only print problem in hough circles, but continue with older f
 
                 # Calculate image jacobian
                 J_image = np.zeros((m, n)) # need to find
@@ -113,13 +119,12 @@ class Experiment:
                 if (f_old is None):
                     f_old = f.copy()
             except Exception as e:
-                print(e) # only print problem in hough circles, but continue with older f
-                break
+                self.logger.error(e) # only print problem in hough circles, but continue with older f
 
             # Calculating / Estimating jacobian
             J_image = np.zeros((len(f), 6))
             
-            if self.method == Method.IBVS:
+            if self.method == Method.ANALYTICAL:
                 Z_camera = self.robot.computeZ(4, recalculate_fkine=True)
                 focal = resolution[0]/(2*np.tan(0.5*np.deg2rad(self.robot.perspective_angle)))
                 for i in range(0, int(len(f)/2)):
@@ -196,7 +201,7 @@ class Experiment:
                         difference = np.linalg.norm(X_corrected - X_corrected_old)/np.linalg.norm(X_corrected_old)
                         epoch += 1
                         if epoch == self.fpi_epoch_max:
-                            print("Reached max epoch")
+                            self.logger.debug("Reached max epoch")
                     X = X_corrected
                 
                 P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T
@@ -219,9 +224,9 @@ class Experiment:
             desired_f_log[k] = self.desired_f
             error_log[k] = error
             noise_log[k] = noise
-            t_log[k] = k*self.t_s
+            t_log[k] = t
             k += 1
-            print('time: ' + str(t) + '; error: ' + str(np.linalg.norm(error)))
+            self.logger.debug('time: ' + str(t) + '; error: ' + str(np.linalg.norm(error)))
 
             # Send theta command to robot
             self.robot.setJointsPos(new_q)

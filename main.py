@@ -5,36 +5,116 @@ import numpy as np
 import pandas as pd
 import time
 from math import floor
+import logging
+from json import load
+import sys
 
-EPOCH = 2
-SEED = 12345
+out_filename = time.strftime("%d_%m_%Y_%H_%M_%S", time.localtime())
 
-filename = time.strftime("%d_%M_%Y_%H_%M_%S", time.localtime())
+# Reading config
+with open("config.json", "r") as config_file:
+    config = load(config_file)
+    
+    try:
+        # Logging
+        logger = logging.getLogger(__name__)
+        ch = logging.StreamHandler(sys.stdout)
+
+        if config["log_level"] == "DEBUG":
+            logger.setLevel(logging.DEBUG)
+        elif config["log_level"] == "INFO":
+            logger.setLevel(logging.INFO)
+        elif config["log_level"] == "WARNING":
+            logger.setLevel(logging.WARNING)
+        elif config["log_level"] == "ERROR":
+            logger.setLevel(logging.ERROR)
+        elif config["log_level"] == "CRITICAL":
+            logger.setLevel(logging.CRITICAL)
+
+        fh = logging.FileHandler(out_filename+'.log')
+        fh.setLevel(logging.DEBUG)
+
+        log_formatter = logging.Formatter('[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
+        fh.setFormatter(log_formatter)
+        ch.setFormatter(log_formatter)
+
+        logger.addHandler(ch)
+        logger.addHandler(fh)
+
+        # Experiments config
+        logger.debug("Loading experiments config")
+        experiments_config = config["experiments"]
+
+        for key, value in experiments_config.items():
+            logger.debug(str(key) + " : " + str(value))
+
+        dt = experiments_config["dt"]
+        t_max = experiments_config["t_max"]
+        epoch = experiments_config["epoch"]
+        ibvs_gain = experiments_config["ibvs_gain"]
+        q = np.array(experiments_config["q_start"])
+        desired_f = np.array(experiments_config["desired_f"])
+
+        # Estimator config
+        logger.debug("Loading estimator config")
+        estimator_config = config["estimator"]
+        
+        for key, value in estimator_config.items():
+            logger.debug(str(key) + " : " + str(value))
+
+        method_name = estimator_config["method"]
+        if method_name in [e.name for e in Method]:
+            method = Method[method_name].value
+        else: 
+            logger.critical("Estimation method " + method_name + " unknown.")
+            sys.exit()
+        method_params = estimator_config["estimator_params"]
+
+        # Noise config
+        logger.debug("Loading noise config")
+        noise_config = config["noise"]
+
+        for key, value in noise_config.items():
+            logger.debug(str(key) + " : " + str(value))
+
+        noise_type_name = noise_config["type"]
+        if noise_type_name in [e.name for e in NoiseType]:
+            noise_type = NoiseType[noise_type_name].value
+        else: 
+            logger.critical("Noise type " + noise_type_name + " unknown.")
+            sys.exit()
+        noise_params = noise_config["noise_params"]
+        seed = noise_config["seed"]
+    
+    except KeyError as e:
+        logger.critical("Could not load config key: " + str(e))
+        sys.exit()
 
 rho_list = np.linspace(0, 0.2, 12)
 experiments = []
-q = np.array([0.0, -np.pi/8, np.pi/2 + np.pi/8, 0.0, -np.pi/2, 0.0])
 
-# 4 features
-desired_f = np.array([149., 145., 125., 121., 101., 145., 125., 169.]) # Center
-#desired_f = np.array([125., 121., 101., 145., 125., 169., 149., 145.]) # Rotation
-
-robot = UR10Simulation()
+robot = UR10Simulation(logger=logger)
 
 # Preparing experiment queue
 for rho in rho_list:
-    for i in range(EPOCH):
-        # Noise generation
-        noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=NoiseType.GAUSSIAN_MIXTURE, mean=5, std=0.25, rho=rho, seed=SEED)
     
-        experiments.append(Experiment(robot=robot, noise_prof=noise_prof, method=Method.MCKF, q_start=q, desired_f=desired_f, initial_guess=True))
+    noise_params["rho"] = rho
+    for i in range(epoch):
+        # Noise generation
+        noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, noise_params=noise_params)
+    
+        experiments.append(Experiment(q_start=q, desired_f=desired_f, noise_prof=noise_prof, t_s=dt, t_max=t_max, ibvs_gain=ibvs_gain, robot=robot, logger=logger, method=method, method_params=method_params))
+
+first_experiment = True
+file_header = True
 
 for i, experiment in enumerate(experiments):
-    print("Experiment " + str(i+1) + " of " + str(len(experiments)))
+    logger.info("Experiment " + str(i+1) + " of " + str(len(experiments)))
     # Running experiment
     status, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log = experiment.run()
 
     # Saving data
+    logger.debug("Saving experiment data in csv")  
     dataframe = pd.DataFrame(data={
         'experiment_id': i,
         'rho': rho_list[int(floor(i/2))], # Temporary
@@ -77,7 +157,8 @@ for i, experiment in enumerate(experiments):
         'noise_8': noise_log[:, 7]
     })
 
-    
-    dataframe.to_csv('results/' + filename + '.csv', mode='a', index=False)
-
-
+    if first_experiment:
+        file_header = False
+        first_experiment = False
+  
+    dataframe.to_csv('results/' + out_filename + '.csv', mode='a', index=False, header=file_header)
