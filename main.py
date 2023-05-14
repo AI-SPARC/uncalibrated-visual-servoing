@@ -54,6 +54,7 @@ with open("config.json", "r") as config_file:
         ibvs_gain = experiments_config["ibvs_gain"]
         q = np.array(experiments_config["q_start"])
         desired_f = np.array(experiments_config["desired_f"])
+        visualization = experiments_config["visualization"]
 
         # Estimator config
         logger.debug("Loading estimator config")
@@ -105,7 +106,7 @@ for rho in rho_list:
         # Noise generation
         noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, noise_params=noise_params)
     
-        robot = UR10Simulation(logger=logger)
+        robot = UR10Simulation(logger=logger, visualization=visualization)
         experiment = Experiment(q_start=q, desired_f=desired_f, noise_prof=noise_prof, t_s=dt, t_max=t_max, ibvs_gain=ibvs_gain, robot=robot, logger=logger, method=method, method_params=method_params)
 
         logger.info("Experiment " + str(k+1) + " of " + str(len(rho_list)*epoch))

@@ -1,12 +1,13 @@
 {
-    "log_level" : "INFO",
+    "log_level" : "DEBUG",
     "experiments": {
         "dt": 0.05,
-        "t_max": 5,
-        "epoch": 2,
+        "t_max": 15,
+        "epoch": 10,
         "ibvs_gain": 0.5,
         "q_start": [0.0, -0.39269908, 1.96349541, 0.0, -1.57079633, 0],
-        "desired_f": [149.0, 145.0, 125.0, 121.0, 101.0, 145.0, 125.0, 169.0]
+        "desired_f": [149.0, 145.0, 125.0, 121.0, 101.0, 145.0, 125.0, 169.0],
+        "visualization": false
     },
     "estimator": {
         "method": "MCKF",

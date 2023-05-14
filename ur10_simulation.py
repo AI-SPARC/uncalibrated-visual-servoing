@@ -5,7 +5,7 @@ from time import sleep
 import logging
 
 class UR10Simulation():
-    def __init__(self, logger: object = None) -> None:
+    def __init__(self, logger: object = None, visualization: bool = True) -> None:
         # New instance of API client
         self.client = RemoteAPIClient()
 
@@ -21,6 +21,7 @@ class UR10Simulation():
         self.dq = np.zeros(6)
 
         self.perspective_angle = 65
+        self.visualization = visualization
         
         self.logger = logging.getLogger(__name__)
         if logger is not None:
@@ -51,6 +52,7 @@ class UR10Simulation():
         self.logger.debug("Starting simulation")
         while (self.sim.getSimulationState() != self.sim.simulation_advancing_firstafterstop) and (self.sim.getSimulationState() != self.sim.simulation_advancing_running):
             sleep(0.1)
+        self.sim.setBoolParameter(self.sim.boolparam_display_enabled, self.visualization)
         self.logger.debug("Simulation started")
         self.step()
 
