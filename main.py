@@ -118,8 +118,8 @@ for rho in rho_list:
         # Saving data
         logger.debug("Saving experiment data in csv")  
         dataframe = pd.DataFrame(data={
-            'experiment_id': i,
-            'rho': rho_list[int(floor(i/2))], # Temporary
+            'experiment_id': k,
+            'rho': rho, # Temporary
             't': t_log,
             'q_1': q_log[:, 0],
             'q_2': q_log[:, 1],
@@ -158,12 +158,12 @@ for rho in rho_list:
             'noise_7': noise_log[:, 6],
             'noise_8': noise_log[:, 7]
         })
+    
+        dataframe.to_csv('results/data/' + out_filename + '.csv', mode='a', index=False, header=file_header)
 
         if first_experiment:
             file_header = False
             first_experiment = False
-    
-        dataframe.to_csv('results/data/' + out_filename + '.csv', mode='a', index=False, header=file_header)
 
         k = k+1
 
