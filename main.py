@@ -6,32 +6,35 @@ import pandas as pd
 import time
 from math import floor
 import logging
-from json import load
+from json import load, dump
 import sys
+import os
 
-out_filename = time.strftime("%d_%m_%Y_%H_%M_%S", time.localtime())
+directory_path = os.path.join('./results/data', time.strftime("%d_%m_%Y_%H_%M_%S", time.localtime()))
+os.mkdir(directory_path)
 
 # Reading config
-with open("config.json", "r") as config_file:
+with open("config.json", "r", encoding="utf-8") as config_file:
     config = load(config_file)
     
     try:
         # Logging
         logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
         ch = logging.StreamHandler(sys.stdout)
 
         if config["log_level"] == "DEBUG":
-            logger.setLevel(logging.DEBUG)
+            ch.setLevel(logging.DEBUG)
         elif config["log_level"] == "INFO":
-            logger.setLevel(logging.INFO)
+            ch.setLevel(logging.INFO)
         elif config["log_level"] == "WARNING":
-            logger.setLevel(logging.WARNING)
+            ch.setLevel(logging.WARNING)
         elif config["log_level"] == "ERROR":
-            logger.setLevel(logging.ERROR)
+            ch.setLevel(logging.ERROR)
         elif config["log_level"] == "CRITICAL":
-            logger.setLevel(logging.CRITICAL)
+            ch.setLevel(logging.CRITICAL)
 
-        fh = logging.FileHandler(out_filename+'.log')
+        fh = logging.FileHandler(os.path.join(directory_path, 'debug.log'))
         fh.setLevel(logging.DEBUG)
 
         log_formatter = logging.Formatter('[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
@@ -46,7 +49,7 @@ with open("config.json", "r") as config_file:
         experiments_config = config["experiments"]
 
         for key, value in experiments_config.items():
-            logger.debug(str(key) + " : " + str(value))
+            logger.info(str(key) + " : " + str(value))
 
         dt = experiments_config["dt"]
         t_max = experiments_config["t_max"]
@@ -90,6 +93,10 @@ with open("config.json", "r") as config_file:
     except KeyError as e:
         logger.critical("Could not load config key: " + str(e))
         sys.exit()
+    
+    # Saving a copy in the experiments directory
+    with open(os.path.join(directory_path, "config.json"), "w", encoding="utf-8") as json_copy:
+        dump(config, json_copy)
 
 rho_list = np.linspace(0, 0.2, 12)
 experiments = []
@@ -159,7 +166,7 @@ for rho in rho_list:
             'noise_8': noise_log[:, 7]
         })
     
-        dataframe.to_csv('results/data/' + out_filename + '.csv', mode='a', index=False, header=file_header)
+        dataframe.to_csv(os.path.join(directory_path, 'results.csv'), mode='a', index=False, header=file_header)
 
         if first_experiment:
             file_header = False

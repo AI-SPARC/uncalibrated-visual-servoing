@@ -25,6 +25,8 @@ class Experiment:
         self.method = method
         
         if self.method == Method.KF or self.method == Method.MCKF:
+            method_params = method_params['method_params']
+            
             self.initial_guess = method_params['initial_guess'] if "initial_guess" in method_params else True
 
             if self.method == Method.MCKF:

@@ -27,8 +27,9 @@ class NoiseProfiler():
         self.generators = []
         
         self.noise_type = noise_type
-
+        
         if noise_type == NoiseType.WHITE_NOISE or noise_type == NoiseType.GAUSSIAN_MIXTURE or noise_type == NoiseType.GAUSSIAN_BIMODAL:
+            noise_params = noise_params["noise_params"]
             self.std = noise_params['std'] if "std" in noise_params else 0.25
         
             if noise_type == NoiseType.GAUSSIAN_MIXTURE or noise_type == NoiseType.GAUSSIAN_BIMODAL:

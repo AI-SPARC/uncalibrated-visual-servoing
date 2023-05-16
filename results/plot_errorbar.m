@@ -1,7 +1,7 @@
 clear
 clc
 
-data = readtable("data/13_05_2023_18_11_00.csv");
+data = readtable("data/15_05_2023_18_25_16.csv");
 
 %% Getting stats
 % Getting list of rhos
