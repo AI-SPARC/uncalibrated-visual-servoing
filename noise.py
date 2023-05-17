@@ -1,6 +1,6 @@
 from threading import Lock, Thread
 from numpy.random import Generator, PCG64, default_rng
-from numpy import zeros
+from numpy import zeros, sin, cos, tan, arctan, sqrt, log, pi
 from enum import Enum
 
 class NoiseType(Enum):
@@ -18,6 +18,8 @@ class NoiseType(Enum):
             num = 2
         elif type == cls.GAUSSIAN_BIMODAL:
             num = 3
+        elif type == cls.ALPHA_STABLE:
+            num = 1
         return num
 
 class NoiseProfiler():
@@ -27,22 +29,29 @@ class NoiseProfiler():
         self.generators = []
         
         self.noise_type = noise_type
+
+        if "noise_params" in noise_params:
+            noise_params = noise_params["noise_params"]
         
         if noise_type == NoiseType.WHITE_NOISE or noise_type == NoiseType.GAUSSIAN_MIXTURE or noise_type == NoiseType.GAUSSIAN_BIMODAL:
-            noise_params = noise_params["noise_params"]
-            self.std = noise_params['std'] if "std" in noise_params else 0.25
+            self.std = noise_params['std']
         
             if noise_type == NoiseType.GAUSSIAN_MIXTURE or noise_type == NoiseType.GAUSSIAN_BIMODAL:
-                self.mean = noise_params['mean'] if "mean" in noise_params else 5
-                self.rho = noise_params['rho'] if "rho" in noise_params else 0.2
+                self.mean = noise_params['mean']
+                self.rho = noise_params['rho']
 
                 self.rhoGenerators = []
 
                 for i in range(num_features):
                     if seed is None:
-                        self.rhoGenerators.append(default_rng())    
+                        self.rhoGenerators.append(default_rng())
                     else:
                         self.rhoGenerators.append(Generator(PCG64(2*seed+i)))
+        elif noise_type == NoiseType.ALPHA_STABLE:
+            self.alpha = noise_params['alpha']
+            self.beta = noise_params['beta']
+            self.gamma = noise_params['gamma']
+            self.delta = noise_params['delta']
 
         for i in range(NoiseType.numberOfGenerators(noise_type) * num_features):
             if seed is None:
@@ -96,5 +105,58 @@ class NoiseProfiler():
         return values
     
     def getAlphaStable(self) -> list:
+        '''
+        STBLRND alpha-stable random number generator.
+        R = getAlphaStable(ALPHA,BETA,GAMMA,DELTA) draws a sample from the Levy 
+        alpha-stable distribution with characteristic exponent ALPHA, 
+        skewness BETA, scale parameter GAMMA and location parameter DELTA.
+        ALPHA,BETA,GAMMA and DELTA must be scalars which fall in the following 
+        ranges :
+           0 < ALPHA <= 2
+           -1 <= BETA <= 1  
+           0 < GAMMA < inf 
+           -inf < DELTA < inf
+        
+        
+        
+        References:
+        [1] J.M. Chambers, C.L. Mallows and B.W. Stuck (1976) 
+            "A Method for Simulating Stable Random Variables"  
+            JASA, Vol. 71, No. 354. pages 340-344  
+        
+        [2] Aleksander Weron and Rafal Weron (1995)
+            "Computer Simulation of Levy alpha-Stable Variables and Processes" 
+            Lec. Notes in Physics, 457, pages 379-392
+        '''
+
         values = zeros(self.num_features)
+
+        for i in range(self.num_features):
+            # Checking special cases
+            if self.alpha == 2: # Gaussian distribution
+                values[i] = self.generators[i].normal(loc=0.0, scale=sqrt(2))
+            elif self.alpha == 1 and self.beta == 0: # Cauchy distribution
+                values[i] = tan(pi/2 * (2*self.generators[i].uniform(low=0.0, high=1.0) - 1))
+            elif self.alpha == 0.5 and abs(self.beta) == 1: # Levy distribution (a.k.a. Pearson V)
+                values[i] = self.beta / (self.generators[i].normal(loc=0.0, scale=1.0)**2)
+            else:
+                # Alpha-stable cases
+                V = (pi/2) * (2*self.generators[i].uniform(low=0.0, high=1.0) - 1)
+                W = -log(self.generators[i].uniform(low=0.0, high=1.0))
+                if self.beta == 0: # Symmetric alpha-stable
+                    values[i] = (sin(self.alpha * V) / (cos(V)**(1/self.alpha))) * (cos(V*(1-self.alpha))/W)**((1-self.alpha)/self.alpha)
+                elif self.alpha != 1: # General case, alpha not 1
+                    constant = self.beta * tan(pi*self.alpha/2)
+                    B = arctan(constant)
+                    S = (1 + constant**2)**(1/(2*self.alpha))
+                    values[i] = S * sin(self.alpha*V + B) / (cos(V) ** (1/self.alpha)) * (cos((1 - self.alpha) * V - B) / W)**((1 - self.alpha) / self.alpha)
+                else: # General case, alpha is 1
+                    sclshftV = pi/2 + self.beta * V
+                    values[i] = 2/pi * (sclshftV * tan(V) - self.beta * log((pi/2 * W * cos(V)) / sclshftV))
+            
+            # Scale and shift
+            values[i] = self.gamma * values[i] + self.delta
+            if self.alpha == 1:
+                values[i] += (2/pi) * self.beta * self.gamma * log(self.gamma)
+
         return values

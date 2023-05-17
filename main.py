@@ -117,7 +117,7 @@ for rho in rho_list:
         experiment = Experiment(q_start=q, desired_f=desired_f, noise_prof=noise_prof, t_s=dt, t_max=t_max, ibvs_gain=ibvs_gain, robot=robot, logger=logger, method=method, method_params=method_params)
 
         logger.info("Experiment " + str(k+1) + " of " + str(len(rho_list)*epoch))
-        logger.info("Noise params :" + str(noise_params))
+        logger.info("Noise params: " + str(noise_params))
         
         # Running experiment
         status, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log = experiment.run()
