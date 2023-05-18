@@ -136,27 +136,27 @@ class NoiseProfiler():
             if self.alpha == 2: # Gaussian distribution
                 values[i] = self.generators[i].normal(loc=0.0, scale=sqrt(2))
             elif self.alpha == 1 and self.beta == 0: # Cauchy distribution
-                values[i] = tan(pi/2 * (2*self.generators[i].uniform(low=0.0, high=1.0) - 1))
+                values[i] = tan(pi(self.generators[i].uniform(low=0.0, high=1.0) - 0.5)) # https://en.wikipedia.org/wiki/Cauchy_distribution#Generating_values_from_Cauchy_distribution
             elif self.alpha == 0.5 and abs(self.beta) == 1: # Levy distribution (a.k.a. Pearson V)
                 values[i] = self.beta / (self.generators[i].normal(loc=0.0, scale=1.0)**2)
             else:
                 # Alpha-stable cases
-                V = (pi/2) * (2*self.generators[i].uniform(low=0.0, high=1.0) - 1)
-                W = -log(self.generators[i].uniform(low=0.0, high=1.0))
+                V = self.generators[i].uniform(low=-pi/2, high=pi/2)
+                W = -log(self.generators[i].uniform(low=0.0, high=1.0)) # You can test it with histogram(-log(rand(1000, 1))) and mean(log(rand(1000, 1)))
                 if self.beta == 0: # Symmetric alpha-stable
                     values[i] = (sin(self.alpha * V) / (cos(V)**(1/self.alpha))) * (cos(V*(1-self.alpha))/W)**((1-self.alpha)/self.alpha)
                 elif self.alpha != 1: # General case, alpha not 1
                     constant = self.beta * tan(pi*self.alpha/2)
                     B = arctan(constant)
                     S = (1 + constant**2)**(1/(2*self.alpha))
-                    values[i] = S * sin(self.alpha*V + B) / (cos(V) ** (1/self.alpha)) * (cos((1 - self.alpha) * V - B) / W)**((1 - self.alpha) / self.alpha)
+                    values[i] = S * sin(self.alpha*V + B) / (cos(V) ** (1/self.alpha)) * (cos((1 - self.alpha) * V - B) / W)**((1 - self.alpha) / self.alpha) # TODO: Check if it should be B * self.alpha
                 else: # General case, alpha is 1
                     sclshftV = pi/2 + self.beta * V
-                    values[i] = 2/pi * (sclshftV * tan(V) - self.beta * log((pi/2 * W * cos(V)) / sclshftV))
+                    values[i] = 2/pi * (sclshftV * tan(V) - self.beta * log((W * cos(V)) / sclshftV)) # WARNING: Check if that pi/2 inside log is correct 
             
             # Scale and shift
             values[i] = self.gamma * values[i] + self.delta
             if self.alpha == 1:
-                values[i] += (2/pi) * self.beta * self.gamma * log(self.gamma)
+                values[i] = self.gamma * values[i] + (2/pi) * self.beta * self.gamma * log(self.gamma) + self.delta
 
         return values

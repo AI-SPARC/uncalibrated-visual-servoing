@@ -3,14 +3,14 @@
     "experiments": {
         "dt": 0.05,
         "t_max": 15,
-        "epoch": 1,
+        "epoch": 100,
         "ibvs_gain": 0.5,
         "q_start": [0.0, -0.39269908, 1.96349541, 0.0, -1.57079633, 0],
         "desired_f": [149.0, 145.0, 125.0, 121.0, 101.0, 145.0, 125.0, 169.0],
-        "visualization": true
+        "visualization": false
     },
     "estimator": {
-        "method": "KF",
+        "method": "MCKF",
         "estimator_params": {
             "initial_guess": true, 
             "kernel_bw": 10, 
@@ -20,10 +20,9 @@
     },
     "noise": {
         "type": "ALPHA_STABLE",
-        "noise_params": {    
-            "alpha": 1,
+        "noise_params": {
             "beta": 0.5,
-            "gamma": 0.01,
+            "gamma": 0.1,
             "delta": 0
         },
         "seed": null

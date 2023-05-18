@@ -9,8 +9,8 @@ class Method(Enum):
     MCKF = 3
 
 class ExperimentStatus(Enum):
-    OK = 0
-    ERROR = 1
+    SUCCESS = 0
+    FAIL = 1
 
 class Experiment:
     def __init__(self, q_start: list, desired_f: list, noise_prof: object, t_s: float, t_max: float, ibvs_gain: float, robot: object, method: enumerate, logger: object = None, **method_params) -> None:
@@ -41,6 +41,8 @@ class Experiment:
                 self.logger.addHandler(handler)
 
     def run(self) -> list:
+        experiment_status = ExperimentStatus.SUCCESS
+    
         self.robot.start(self.q_start)
 
         m = len(self.desired_f)
@@ -211,9 +213,14 @@ class Experiment:
 
             error = f - self.desired_f
             
-            # IBVS Control Law
-            dp = - self.ibvs_gain * np.linalg.pinv(J_image) @ error.reshape((m, 1))
-            dx = np.kron(np.eye(2), self.robot.getCameraRotation().T) @ dp
+            try:
+                # IBVS Control Law
+                dp = - self.ibvs_gain * np.linalg.pinv(J_image) @ error.reshape((m, 1))
+                dx = np.kron(np.eye(2), self.robot.getCameraRotation().T) @ dp
+            except:
+                experiment_status = ExperimentStatus.FAIL
+                self.logger.error('Experiment failed')
+                break
 
             # Invkine
             dq = np.linalg.pinv(self.robot.jacobian()) @ dx
@@ -250,4 +257,7 @@ class Experiment:
 
         self.robot.stop()
 
-        return ExperimentStatus.OK, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log
+        if experiment_status == ExperimentStatus.SUCCESS:
+            self.logger.info("Experiment success")
+
+        return experiment_status, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log

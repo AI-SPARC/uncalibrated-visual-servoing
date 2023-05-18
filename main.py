@@ -1,4 +1,4 @@
-from experiment import Experiment, Method
+from experiment import Experiment, Method, ExperimentStatus
 from noise import NoiseProfiler, NoiseType
 from ur10_simulation import UR10Simulation
 import numpy as np
@@ -99,16 +99,24 @@ with open("config.json", "r", encoding="utf-8") as config_file:
         dump(config, json_copy)
 
 rho_list = np.linspace(0, 0.2, 12)
+if noise_type == NoiseType.ALPHA_STABLE:
+    rho_list = np.linspace(2, 1, 12)
 experiments = []
 
 first_experiment = True
 file_header = True
 
 k = 0
+
+experiment_success_cnt = 0
+experiment_fail_cnt = 0
 # Preparing experiment queue
 for rho in rho_list:
     
-    noise_params["rho"] = rho
+    if noise_type == NoiseType.ALPHA_STABLE:
+        noise_params["alpha"] = rho
+    else:
+        noise_params["rho"] = rho
     for i in range(epoch):
         # Noise generation
         noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, noise_params=noise_params)
@@ -126,6 +134,7 @@ for rho in rho_list:
         logger.debug("Saving experiment data in csv")  
         dataframe = pd.DataFrame(data={
             'experiment_id': k,
+            'status': status,
             'rho': rho, # Temporary
             't': t_log,
             'q_1': q_log[:, 0],
@@ -174,4 +183,10 @@ for rho in rho_list:
 
         k = k+1
 
+        if status == ExperimentStatus.SUCCESS:
+            experiment_success_cnt += 1
+        else:
+            experiment_fail_cnt += 1
+
 logger.info("Ending experiment batch")
+logger.info("Experiments status summary: " + str(experiment_fail_cnt) + " fail | " + str(experiment_success_cnt) + " success")
