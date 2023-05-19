@@ -24,15 +24,18 @@ class Experiment:
         self.ibvs_gain = ibvs_gain
         self.method = method
         
+        if "method_params" in method_params:
+            method_params = method_params["method_params"]
+
         if self.method == Method.KF or self.method == Method.MCKF:
-            method_params = method_params['method_params']
             
-            self.initial_guess = method_params['initial_guess'] if "initial_guess" in method_params else True
+            self.initial_guess = method_params['initial_guess']
 
             if self.method == Method.MCKF:
-                self.kernel_bw = method_params['kernel_bw'] if "kernel_bw" in method_params else 20
-                self.fpi_threshold = method_params['fpi_threshold'] if "fpi_threshold" in method_params else 0.01
-                self.fpi_epoch_max = method_params['fpi_epoch_max'] if "fpi_epoch_max" in method_params else 100
+                self.kernel_bw = method_params['kernel_bw']
+                self.fpi_threshold = method_params['fpi_threshold']
+                self.fpi_epoch_max = method_params['fpi_epoch_max']
+                self.outlier_threshold = method_params['outlier_threshold']
         
         self.logger = logging.getLogger(__name__)
         if logger is not None:
@@ -171,42 +174,53 @@ class Experiment:
                     K = P @ H.T @ np.linalg.inv(H @ P @ H.T + R)
                     X = X + K @ (Z - H @ X)
                 elif self.method == Method.MCKF:
-                    # Finding Bp using Cholesky
-                    Bp = np.linalg.cholesky(P)
-                    Br = np.linalg.cholesky(R) # Maybe it can be outside the loop
-                    B = np.vstack([np.hstack([Bp, np.zeros((Bp.shape[0], Br.shape[1]))]), np.hstack([np.zeros((Br.shape[0], Bp.shape[1])), Br])])
-                    B_inv = np.linalg.pinv(B)
+                    # If extremely large noises, Cy may be nearly singular, resulting in numerical problems
+                    # So we check the following conditions to choose if only the prediction step will happen
+                    eta = Z - H @ X
+                    A = H @ P @ H.T + R
+                    nu = eta.T @ np.linalg.inv(A) @ eta
 
-                    # Correction
-                    difference = np.inf
-                    epoch = 0
-                    X_corrected = X.copy()
-                    while difference > self.fpi_threshold and epoch < self.fpi_epoch_max:
-                        ## Correntropy kernels
-                        D = B_inv @ np.vstack([X, Z]) # Our y is Z
-                        W = B_inv @ np.vstack([np.eye(m*n), H])
-                        e = D - W @ X_corrected
-                        
-                        Cx = np.diag([gaussianKernel(e[i, 0], self.kernel_bw) for i in range(0, m*n)])
-                        Cy = np.diag([gaussianKernel(e[i, 0], self.kernel_bw) for i in range(m*n, m*n + m)])
-                        #print(np.linalg.det(Cx))
-                        #print(np.linalg.det(Cy))
+                    self.logger.debug(nu)
+                    if np.linalg.norm(nu) > self.outlier_threshold:
+                        # Carry out prediction step
+                        self.logger.warning("MCKF detected large outlier")
+                    else:
+                        # Finding Bp using Cholesky
+                        Bp = np.linalg.cholesky(P)
+                        Br = np.linalg.cholesky(R) # Maybe it can be outside the loop
+                        B = np.vstack([np.hstack([Bp, np.zeros((Bp.shape[0], Br.shape[1]))]), np.hstack([np.zeros((Br.shape[0], Bp.shape[1])), Br])])
+                        B_inv = np.linalg.pinv(B)
 
-                        ## Compute optimal gain
-                        P_hat = Bp @ np.linalg.inv(Cx) @ Bp.T
-                        R_hat = Br @ np.linalg.inv(Cy) @ Br.T
+                        # Correction
+                        difference = np.inf
+                        epoch = 0
+                        X_corrected = X.copy()
+                        while difference > self.fpi_threshold and epoch < self.fpi_epoch_max:
+                            ## Correntropy kernels
+                            D = B_inv @ np.vstack([X, Z]) # Our y is Z
+                            W = B_inv @ np.vstack([np.eye(m*n), H])
+                            e = D - W @ X_corrected
+                            
+                            Cx = np.diag([gaussianKernel(e[i, 0], self.kernel_bw) for i in range(0, m*n)])
+                            Cy = np.diag([gaussianKernel(e[i, 0], self.kernel_bw) for i in range(m*n, m*n + m)])
+                            #print(np.linalg.det(Cx))
+                            #print(np.linalg.det(Cy))
 
-                        K = P_hat @ H.T @ np.linalg.inv(H @ P_hat @ H.T + R_hat)
+                            ## Compute optimal gain
+                            P_hat = Bp @ np.linalg.inv(Cx) @ Bp.T
+                            R_hat = Br @ np.linalg.inv(Cy) @ Br.T
 
-                        ## Correct X
-                        X_corrected_old = X_corrected.copy()
-                        X_corrected = X + K @ (Z - H @ X)
+                            K = P_hat @ H.T @ np.linalg.inv(H @ P_hat @ H.T + R_hat)
 
-                        difference = np.linalg.norm(X_corrected - X_corrected_old)/np.linalg.norm(X_corrected_old)
-                        epoch += 1
-                        if epoch == self.fpi_epoch_max:
-                            self.logger.debug("Reached max epoch")
-                    X = X_corrected
+                            ## Correct X
+                            X_corrected_old = X_corrected.copy()
+                            X_corrected = X + K @ (Z - H @ X)
+
+                            difference = np.linalg.norm(X_corrected - X_corrected_old)/np.linalg.norm(X_corrected_old)
+                            epoch += 1
+                            if epoch == self.fpi_epoch_max:
+                                self.logger.debug("Reached max epoch")
+                        X = X_corrected
                 
                 P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T
                 J_image = X.reshape((m, n))
