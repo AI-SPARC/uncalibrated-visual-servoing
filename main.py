@@ -45,7 +45,7 @@ with open("config.json", "r", encoding="utf-8") as config_file:
         logger.addHandler(fh)
 
         # Experiments config
-        logger.debug("Loading experiments config")
+        logger.info("Loading experiments config")
         experiments_config = config["experiments"]
 
         for key, value in experiments_config.items():
@@ -60,11 +60,11 @@ with open("config.json", "r", encoding="utf-8") as config_file:
         visualization = experiments_config["visualization"]
 
         # Estimator config
-        logger.debug("Loading estimator config")
+        logger.info("Loading estimator config")
         estimator_config = config["estimator"]
         
         for key, value in estimator_config.items():
-            logger.debug(str(key) + " : " + str(value))
+            logger.info(str(key) + " : " + str(value))
 
         method_name = estimator_config["method"]
         if method_name in [e.name for e in Method]:
@@ -75,11 +75,11 @@ with open("config.json", "r", encoding="utf-8") as config_file:
         method_params = estimator_config["estimator_params"]
 
         # Noise config
-        logger.debug("Loading noise config")
+        logger.info("Loading noise config")
         noise_config = config["noise"]
 
         for key, value in noise_config.items():
-            logger.debug(str(key) + " : " + str(value))
+            logger.info(str(key) + " : " + str(value))
 
         noise_type_name = noise_config["type"]
         if noise_type_name in [e.name for e in NoiseType]:
@@ -100,7 +100,7 @@ with open("config.json", "r", encoding="utf-8") as config_file:
 
 rho_list = np.linspace(0, 0.2, 12)
 if noise_type == NoiseType.ALPHA_STABLE:
-    rho_list = np.linspace(2, 1, 12)
+    rho_list = np.linspace(1, 2, 12)
 experiments = []
 
 first_experiment = True
@@ -119,7 +119,7 @@ for rho in rho_list:
         noise_params["rho"] = rho
     for i in range(epoch):
         # Noise generation
-        noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, noise_params=noise_params)
+        noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, logger=logger, noise_params=noise_params)
     
         robot = UR10Simulation(logger=logger, visualization=visualization)
         experiment = Experiment(q_start=q, desired_f=desired_f, noise_prof=noise_prof, t_s=dt, t_max=t_max, ibvs_gain=ibvs_gain, robot=robot, logger=logger, method=method, method_params=method_params)
@@ -128,7 +128,7 @@ for rho in rho_list:
         logger.info("Noise params: " + str(noise_params))
         
         # Running experiment
-        status, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log = experiment.run()
+        status, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log, kernel_bw_log = experiment.run()
 
         # Saving data
         logger.debug("Saving experiment data in csv")  
@@ -172,7 +172,8 @@ for rho in rho_list:
             'noise_5': noise_log[:, 4],
             'noise_6': noise_log[:, 5],
             'noise_7': noise_log[:, 6],
-            'noise_8': noise_log[:, 7]
+            'noise_8': noise_log[:, 7],
+            'kernel_bw': kernel_bw_log,
         })
     
         dataframe.to_csv(os.path.join(directory_path, 'results.csv'), mode='a', index=False, header=file_header)

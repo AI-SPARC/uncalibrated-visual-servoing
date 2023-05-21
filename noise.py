@@ -2,6 +2,7 @@ from threading import Lock, Thread
 from numpy.random import Generator, PCG64, default_rng
 from numpy import zeros, sin, cos, tan, arctan, sqrt, log, pi
 from enum import Enum
+import logging
 
 class NoiseType(Enum):
     WHITE_NOISE = 1
@@ -24,10 +25,16 @@ class NoiseType(Enum):
 
 class NoiseProfiler():
 
-    def __init__(self, num_features: int, noise_type: enumerate, seed: int = None, **noise_params) -> None:
+    def __init__(self, num_features: int, noise_type: enumerate, seed: int = None, logger: object = None, **noise_params) -> None:
         self.num_features = num_features
         self.generators = []
         
+        self.logger = logging.getLogger(__name__)
+        if logger is not None:
+            self.logger.setLevel(logger.level)
+            for handler in logger.handlers:
+                self.logger.addHandler(handler)
+
         self.noise_type = noise_type
 
         if "noise_params" in noise_params:
@@ -136,7 +143,7 @@ class NoiseProfiler():
             if self.alpha == 2: # Gaussian distribution
                 values[i] = self.generators[i].normal(loc=0.0, scale=sqrt(2))
             elif self.alpha == 1 and self.beta == 0: # Cauchy distribution
-                values[i] = tan(pi(self.generators[i].uniform(low=0.0, high=1.0) - 0.5)) # https://en.wikipedia.org/wiki/Cauchy_distribution#Generating_values_from_Cauchy_distribution
+                values[i] = tan(self.generators[i].uniform(low=-pi/2, high=pi/2)) # https://en.wikipedia.org/wiki/Cauchy_distribution#Generating_values_from_Cauchy_distribution
             elif self.alpha == 0.5 and abs(self.beta) == 1: # Levy distribution (a.k.a. Pearson V)
                 values[i] = self.beta / (self.generators[i].normal(loc=0.0, scale=1.0)**2)
             else:
@@ -153,10 +160,11 @@ class NoiseProfiler():
                 else: # General case, alpha is 1
                     sclshftV = pi/2 + self.beta * V
                     values[i] = 2/pi * (sclshftV * tan(V) - self.beta * log((W * cos(V)) / sclshftV)) # WARNING: Check if that pi/2 inside log is correct 
-            
+
             # Scale and shift
-            values[i] = self.gamma * values[i] + self.delta
             if self.alpha == 1:
                 values[i] = self.gamma * values[i] + (2/pi) * self.beta * self.gamma * log(self.gamma) + self.delta
+            else:
+                values[i] = self.gamma * values[i] + self.delta
 
         return values
