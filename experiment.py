@@ -8,6 +8,7 @@ class Method(Enum):
     KF = 2
     MCKF = 3
     IMCCKF = 4
+    GMCKF = 5
 
 class ExperimentStatus(Enum):
     SUCCESS = 0
@@ -28,11 +29,11 @@ class Experiment:
         if "method_params" in method_params:
             method_params = method_params["method_params"]
 
-        if self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF:
+        if self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
             
             self.initial_guess = method_params['initial_guess']
 
-            if self.method == Method.MCKF or self.method == Method.IMCCKF:
+            if self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
                 self.kernel_bw = method_params['kernel_bw']
                 self.fpi_threshold = method_params['fpi_threshold']
                 self.fpi_epoch_max = method_params['fpi_epoch_max']
@@ -65,7 +66,7 @@ class Experiment:
         noise_log = np.zeros((int(self.t_max/self.t_s), len(f)))
         kernel_bw_log = np.zeros((int(self.t_max/self.t_s)))
 
-        if self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF:
+        if self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
             X = np.zeros((m*n, 1))
             Z = np.zeros((m, 1))
             H = np.zeros((m, m*n))
@@ -116,6 +117,8 @@ class Experiment:
 
         k = 0
         k_max = int(self.t_max/self.t_s)
+        Br = np.linalg.cholesky(R)
+        Br_inv = np.linalg.inv(Br)
 
         # Main loop
         while (t := self.robot.sim.getSimulationTime()) < self.t_max:
@@ -155,9 +158,9 @@ class Experiment:
                     J_image[2*i, 5] = v
                     J_image[2*i+1, 5] = -u
                 
-                J_feature = J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()
+                #J_feature = J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()
 
-            elif self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF:
+            elif self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
                 # Prediction
                 X = X
                 P = P + Q
@@ -253,15 +256,44 @@ class Experiment:
 
                     innov = Z - H @ X
                     norm_innov = np.sqrt(innov.T @ np.linalg.inv(R) @ innov) # computing innovation error in the norm of R_inv
-
                     
                     Cy = gaussianKernel(norm_innov, kernel_bw)
                     R_e = Cy * H @ P @ H.T + R
                     #K = Cy @ np.linalg.inv(np.linalg.inv(P) + Cy @ H.T @ np.linalg.inv(R) @ H) @ H.T @ np.linalg.inv(R)
                     K = Cy * P @ H.T @ np.linalg.inv(R_e)
                     X = X + K @ innov
+                elif self.method == Method.GMCKF:
+                    kernel_bw = self.kernel_bw
+                    if self.annealing:
+                        # Annealing changes the kernel bandwidth throughout the simulation
+                        temp = 1 - k/k_max
+                        kernel_bw = self.kernel_bw + 100*temp
+                        
+                    ## Correntropy kernels
+                    e = Br_inv @ Z - Br_inv @ H @ X
+                    
+                    Cy = np.diag([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m)])
+                    
+                    try:
+                        # If extremely large noises, Cy may be nearly singular, resulting in numerical problems
+                        # So we check the following conditions to choose if only the prediction step will happen
+                        #if (np.linalg.det(Cy) == 0.0):
+                        #    raise np.linalg.LinAlgError('Singular matrix')
+                        #Cy_inv = Cy.T @ np.linalg.inv(Cy @ Cy.T + 0.001**2 * np.eye(m))
+                        Cy_inv = np.linalg.inv(Cy + 0.001**2 * np.eye(m))
+                        R_hat = Br @ Cy_inv @ Br.T
+                    except np.linalg.LinAlgError:
+                        self.logger.warning("Cy is singular, skipping correction step")
+                        skip_correction = True
+                        break
 
-                
+                    S = H @ P @ H.T + R_hat
+                    #S_inv = S.T @ np.linalg.inv(S @ S.T + 0.001**2 * np.eye(m))
+                    S_inv = np.linalg.inv(S)
+                    K = P @ H.T @ S_inv
+
+                    X = X + K @ (Z - H @ X)
+               
                 if not skip_correction:
                     P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T
                     #P = (np.eye(m*n) - K @ H) @ P
@@ -275,6 +307,7 @@ class Experiment:
                 #dp = - self.ibvs_gain * np.linalg.pinv(J_image) @ error.reshape((m, 1))
                 #dx = np.kron(np.eye(2), self.robot.getCameraRotation().T) @ dp
                 dq = - self.ibvs_gain * np.linalg.pinv(J_feature) @ error.reshape((m, 1))
+                #dq = - self.ibvs_gain * np.linalg.pinv(J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()) @ error.reshape((m, 1))
             except:
                 experiment_status = ExperimentStatus.FAIL
                 self.logger.error('Experiment failed')
@@ -299,9 +332,9 @@ class Experiment:
             # Send theta command to robot
             self.robot.setJointsPos(new_q)
 
-            if self.method == Method.KF or self.method == Method.MCKF:
+            if self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
                 # Save new_pose as old_pose for next iteration
-                old_pose = new_pose
+                old_pose = new_pose.copy()
                 old_q = self.robot.getJointsPos().copy()
 
             # next_step

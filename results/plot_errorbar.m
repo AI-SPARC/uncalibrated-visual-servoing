@@ -1,7 +1,7 @@
 clear
 clc
 
-data = readtable("data/15_05_2023_18_25_16.csv");
+data = readtable("data/23_05_2023_13_00_45/results.csv");
 
 %% Getting stats
 % Getting list of rhos
@@ -13,11 +13,15 @@ ise_std = zeros(size(rhos));
 iae_mean = zeros(size(rhos));
 iae_std = zeros(size(rhos));
 itae_mean = zeros(size(rhos));
+itae_median = zeros(size(rhos));
 itae_std = zeros(size(rhos));
 
 for i = 1:size(rhos)
     % Getting rho subset
     subdata = data(data.rho == rhos(i), :);
+
+    % Remove fails
+    subdata = subdata(string(subdata.status) == 'ExperimentStatus.SUCCESS', :);
 
     % Getting list of experiments for that rho
     experiments = unique(subdata.experiment_id);
@@ -84,8 +88,10 @@ for i = 1:size(rhos)
     iae_mean(i) = mean(iae_experiments);
     iae_std(i) = std(iae_experiments);
     itae_mean(i) = mean(itae_experiments);
+    itae_median(i) = median(itae_experiments);
     itae_std(i) = std(itae_experiments);
 end
 
 %% Ploting
-errorbar(rhos, itae_mean, itae_std)
+%plot(rhos, itae_mean)
+errorbar(rhos, iae_mean, iae_std, 'LineWidth', 2)

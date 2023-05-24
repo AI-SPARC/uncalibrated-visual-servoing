@@ -120,7 +120,9 @@ for rho in rho_list:
     for i in range(epoch):
         # Noise generation
         noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, logger=logger, noise_params=noise_params)
-    
+        if seed is not None:
+            seed = seed + 1
+
         robot = UR10Simulation(logger=logger, visualization=visualization)
         experiment = Experiment(q_start=q, desired_f=desired_f, noise_prof=noise_prof, t_s=dt, t_max=t_max, ibvs_gain=ibvs_gain, robot=robot, logger=logger, method=method, method_params=method_params)
 
