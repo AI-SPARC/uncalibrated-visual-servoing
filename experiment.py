@@ -112,6 +112,7 @@ class Experiment:
                 J_feature = J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()
 
                 X = J_feature.reshape((m*n, 1))
+                #X = J_image.reshape((m*n, 1))
             else:
                 X = np.random.default_rng().random((m*n, 1))
 
@@ -158,7 +159,7 @@ class Experiment:
                     J_image[2*i, 5] = v
                     J_image[2*i+1, 5] = -u
                 
-                #J_feature = J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()
+                J_feature = J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()
 
             elif self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
                 # Prediction
@@ -183,7 +184,7 @@ class Experiment:
                     first_run = False
                 else:
                     #H = np.kron(np.eye(m), dp.ravel())
-                    #H = np.kron(np.eye(m), dq_real)
+                    #H = np.kron(np.eye(m), dp_real)
                     H = np.kron(np.eye(m), dq.ravel())
 
                 skip_correction = False
@@ -307,7 +308,6 @@ class Experiment:
                 #dp = - self.ibvs_gain * np.linalg.pinv(J_image) @ error.reshape((m, 1))
                 #dx = np.kron(np.eye(2), self.robot.getCameraRotation().T) @ dp
                 dq = - self.ibvs_gain * np.linalg.pinv(J_feature) @ error.reshape((m, 1))
-                #dq = - self.ibvs_gain * np.linalg.pinv(J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()) @ error.reshape((m, 1))
             except:
                 experiment_status = ExperimentStatus.FAIL
                 self.logger.error('Experiment failed')

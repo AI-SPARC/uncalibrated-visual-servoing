@@ -1,6 +1,6 @@
 from threading import Lock, Thread
 from numpy.random import Generator, PCG64, default_rng
-from numpy import zeros, sin, cos, tan, arctan, sqrt, log, pi
+from numpy import zeros, sin, cos, tan, arctan, sqrt, log, pi, any
 from enum import Enum
 import logging
 
@@ -9,6 +9,7 @@ class NoiseType(Enum):
     GAUSSIAN_MIXTURE = 2
     GAUSSIAN_BIMODAL = 3
     ALPHA_STABLE = 4
+    UNIFORM = 5
 
     @classmethod
     def numberOfGenerators(cls, type) -> int:
@@ -21,11 +22,13 @@ class NoiseType(Enum):
             num = 3
         elif type == cls.ALPHA_STABLE:
             num = 1
+        elif type == cls.UNIFORM:
+            num = 1
         return num
 
 class NoiseProfiler():
 
-    def __init__(self, num_features: int, noise_type: enumerate, seed: int = None, logger: object = None, **noise_params) -> None:
+    def __init__(self, num_features: int, noise_type: enumerate, seed: int = None, logger: object = None, noise_hold: bool = False, noise_hold_cnt: int = 0, **noise_params) -> None:
         self.num_features = num_features
         self.generators = []
         
@@ -64,54 +67,89 @@ class NoiseProfiler():
             if seed is None:
                 self.generators.append(default_rng())    
             else:
-                self.generators.append(Generator(PCG64(seed+i)))
-
-
-    def getNoise(self) -> list :
-
-        if self.noise_type == NoiseType.WHITE_NOISE:
-            values = self.getWhiteNoise()
-        elif self.noise_type == NoiseType.GAUSSIAN_MIXTURE:
-            values = self.getGaussianMixture()
-        elif self.noise_type == NoiseType.GAUSSIAN_BIMODAL:
-            values = self.getBimodalGaussianMixture()
-        elif self.noise_type == NoiseType.ALPHA_STABLE:
-            values = self.getAlphaStable()
-
-        return values
-
-    def getWhiteNoise(self) -> list:
-        values = zeros(self.num_features)
-        for i in range(self.num_features):
-            values[i] = self.generators[i].normal(loc=0.0, scale=self.std)
+                self.generators.append(Generator(PCG64(seed+10*i)))
         
-        return values
-    
-    def getGaussianMixture(self) -> list:
-        values = zeros(self.num_features)
-        for i in range(self.num_features):
-            rho = self.rhoGenerators[i].uniform(low=0, high=1)
-            if rho > self.rho:
-                values[i] = self.generators[i].normal(loc=0.0, scale=self.std) # Use white noise gaussian
-            else:
-                values[i] = self.generators[i + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
-        
-        return values
-    
-    def getBimodalGaussianMixture(self) -> list:
-        values = zeros(self.num_features)
-        for i in range(self.num_features):
-            rho = self.rhoGenerators[i].uniform(low=0, high=1)
-            if rho > self.rho:
-                values[i] = self.generators[i].normal(loc=0.0, scale=self.std) # Use white noise gaussian
-            elif rho > self.rho/2:
-                values[i] = self.generators[i + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
-            else:
-                values[i] = self.generators[i + 2*self.num_features].normal(loc=-self.mean, scale=self.std) # use negative mean displaced gaussian
+        if noise_hold:
+            self.noise_hold_cnt_max_predefined = noise_hold_cnt
+        else:
+            self.noise_hold_cnt_max_predefined = 0
+        self.noise_hold_cnt = zeros(int(self.num_features/2))
+        self.noise_hold_cnt_max = zeros(int(self.num_features/2))
 
-        return values
+        self.noise = zeros(self.num_features)
+
+    def getNoise(self) -> list:
+        for i in range(int(self.num_features/2)):
+            if self.noise_hold_cnt[i] >= self.noise_hold_cnt_max[i]:
+                self.noise_hold_cnt[i] = 0
+            
+                # Treat features as pairs
+                noise_pair = zeros(2)
+                outlier_detect = False
+                for j in range(2):
+                    # Get new noise values
+                    if self.noise_type == NoiseType.WHITE_NOISE:
+                        noise_pair[j] = self.__getWhiteNoise(2*i + j)
+                    elif self.noise_type == NoiseType.GAUSSIAN_MIXTURE:
+                        noise_pair[j] = self.__getGaussianMixture(2*i + j)
+                    elif self.noise_type == NoiseType.GAUSSIAN_BIMODAL:
+                        noise_pair[j] = self.__getBimodalGaussianMixture(2*i + j)
+                    elif self.noise_type == NoiseType.ALPHA_STABLE:
+                        noise_pair[j] = self.__getAlphaStable(2*i + j)
+                    elif self.noise_type == NoiseType.UNIFORM:
+                        noise_pair[j] = self.__getUniform(2*i + j)
+                    
+                    # Hold only when one of the features presents impulsive noise
+                    if abs(noise_pair[j]) > 20:
+                        outlier_detect = True
+
+                if outlier_detect:
+                    self.noise_hold_cnt_max[i] = self.noise_hold_cnt_max_predefined
+                else:
+                    self.noise_hold_cnt_max[i] = 0
+
+                # Update noise value for feature pair
+                self.noise[2*i] = noise_pair[0]
+                self.noise[2*i + 1] = noise_pair[1]
+            else:
+                # Hold noise for a moment to simulate realistic computer vision problems, only increment counter
+                self.noise_hold_cnt[i] += 1
+
+        return self.noise
     
-    def getAlphaStable(self) -> list:
+    def __getUniform(self, idx) -> float:
+        value = 0
+        value = self.generators[idx].uniform()
+        return value
+    
+    def __getWhiteNoise(self, idx) -> float:
+        value = 0
+        value = self.generators[idx].normal(loc=0.0, scale=self.std)
+        return value
+    
+    def __getGaussianMixture(self, idx):
+        value = 0
+        rho = self.rhoGenerators[idx].uniform(low=0, high=1)
+        if rho > self.rho:
+            value = self.generators[idx].normal(loc=0.0, scale=self.std) # Use white noise gaussian
+        else:
+            value = self.generators[idx + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
+        
+        return value
+    
+    def __getBimodalGaussianMixture(self, idx) -> float:
+        value = 0
+        rho = self.rhoGenerators[idx].uniform(low=0, high=1)
+        if rho > self.rho:
+            value = self.generators[idx].normal(loc=0.0, scale=self.std) # Use white noise gaussian
+        elif rho > self.rho/2:
+            value = self.generators[idx + self.num_features].normal(loc=self.mean, scale=self.std) # use displaced gaussian
+        else:
+            value = self.generators[idx + 2*self.num_features].normal(loc=-self.mean, scale=self.std) # use negative mean displaced gaussian
+
+        return value
+    
+    def __getAlphaStable(self, idx) -> float:
         '''
         STBLRND alpha-stable random number generator.
         R = getAlphaStable(ALPHA,BETA,GAMMA,DELTA) draws a sample from the Levy 
@@ -136,35 +174,34 @@ class NoiseProfiler():
             Lec. Notes in Physics, 457, pages 379-392
         '''
 
-        values = zeros(self.num_features)
+        value = 0
 
-        for i in range(self.num_features):
-            # Checking special cases
-            if self.alpha == 2: # Gaussian distribution
-                values[i] = self.generators[i].normal(loc=0.0, scale=sqrt(2))
-            elif self.alpha == 1 and self.beta == 0: # Cauchy distribution
-                values[i] = tan(self.generators[i].uniform(low=-pi/2, high=pi/2)) # https://en.wikipedia.org/wiki/Cauchy_distribution#Generating_values_from_Cauchy_distribution
-            elif self.alpha == 0.5 and abs(self.beta) == 1: # Levy distribution (a.k.a. Pearson V)
-                values[i] = self.beta / (self.generators[i].normal(loc=0.0, scale=1.0)**2)
-            else:
-                # Alpha-stable cases
-                V = self.generators[i].uniform(low=-pi/2, high=pi/2)
-                W = -log(self.generators[i].uniform(low=0.0, high=1.0)) # You can test it with histogram(-log(rand(1000, 1))) and mean(log(rand(1000, 1)))
-                if self.beta == 0: # Symmetric alpha-stable
-                    values[i] = (sin(self.alpha * V) / (cos(V)**(1/self.alpha))) * (cos(V*(1-self.alpha))/W)**((1-self.alpha)/self.alpha)
-                elif self.alpha != 1: # General case, alpha not 1
-                    constant = self.beta * tan(pi*self.alpha/2)
-                    B = arctan(constant)
-                    S = (1 + constant**2)**(1/(2*self.alpha))
-                    values[i] = S * sin(self.alpha*V + B) / (cos(V) ** (1/self.alpha)) * (cos((1 - self.alpha) * V - B) / W)**((1 - self.alpha) / self.alpha) # TODO: Check if it should be B * self.alpha
-                else: # General case, alpha is 1
-                    sclshftV = pi/2 + self.beta * V
-                    values[i] = 2/pi * (sclshftV * tan(V) - self.beta * log((W * cos(V)) / sclshftV)) # WARNING: Check if that pi/2 inside log is correct 
+        # Checking special cases
+        if self.alpha == 2: # Gaussian distribution
+            value = self.generators[idx].normal(loc=0.0, scale=sqrt(2))
+        elif self.alpha == 1 and self.beta == 0: # Cauchy distribution
+            value = tan(self.generators[idx].uniform(low=-pi/2, high=pi/2)) # https://en.wikipedia.org/wiki/Cauchy_distribution#Generating_valueom_Cauchy_distribution
+        elif self.alpha == 0.5 and abs(self.beta) == 1: # Levy distribution (a.k.a. Pearson V)
+            value = self.beta / (self.generators[idx].normal(loc=0.0, scale=1.0)**2)
+        else:
+            # Alpha-stable cases
+            V = self.generators[idx].uniform(low=-pi/2, high=pi/2)
+            W = -log(self.generators[idx].uniform(low=0.0, high=1.0)) # You can test it with histogram(-log(rand(1000, 1))) and mean(log(rand(1000, 1)))
+            if self.beta == 0: # Symmetric alpha-stable
+                value = (sin(self.alpha * V) / (cos(V)**(1/self.alpha))) * (cos(V*(1-self.alpha))/W)**((1-self.alpha)/self.alpha)
+            elif self.alpha != 1: # General case, alpha not 1
+                constant = self.beta * tan(pi*self.alpha/2)
+                B = arctan(constant)
+                S = (1 + constant**2)**(1/(2*self.alpha))
+                value = S * sin(self.alpha*V + B) / (cos(V) ** (1/self.alpha)) * (cos((1 - self.alpha) * V - B) / W)**((1 - self.alpha) / self.alpha) # TODO: Check if it should be B * self.alpha
+            else: # General case, alpha is 1
+                sclshftV = pi/2 + self.beta * V
+                value = 2/pi * (sclshftV * tan(V) - self.beta * log((W * cos(V)) / sclshftV)) # WARNING: Check if that pi/2 inside log is correct 
 
-            # Scale and shift
-            if self.alpha == 1:
-                values[i] = self.gamma * values[i] + (2/pi) * self.beta * self.gamma * log(self.gamma) + self.delta
-            else:
-                values[i] = self.gamma * values[i] + self.delta
+        # Scale and shift
+        if self.alpha == 1:
+            value = self.gamma * value + (2/pi) * self.beta * self.gamma * log(self.gamma) + self.delta
+        else:
+            value = self.gamma * value + self.delta
 
-        return values
+        return value

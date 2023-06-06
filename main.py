@@ -4,7 +4,6 @@ from ur10_simulation import UR10Simulation
 import numpy as np
 import pandas as pd
 import time
-from math import floor
 import logging
 from json import load, dump
 import sys
@@ -55,9 +54,11 @@ with open("config.json", "r", encoding="utf-8") as config_file:
         t_max = experiments_config["t_max"]
         epoch = experiments_config["epoch"]
         ibvs_gain = experiments_config["ibvs_gain"]
-        q = np.array(experiments_config["q_start"])
+        q_start = np.array(experiments_config["q_start"])
         desired_f = np.array(experiments_config["desired_f"])
         visualization = experiments_config["visualization"]
+        change_q_start = experiments_config["change_q_start"]
+        experiment_seed = experiments_config["seed"]
 
         # Estimator config
         logger.info("Loading estimator config")
@@ -88,6 +89,8 @@ with open("config.json", "r", encoding="utf-8") as config_file:
             logger.critical("Noise type " + noise_type_name + " unknown.")
             sys.exit()
         noise_params = noise_config["noise_params"]
+        noise_hold = noise_config["hold"]
+        noise_hold_time = noise_config["hold_time"]
         seed = noise_config["seed"]
     
     except KeyError as e:
@@ -110,6 +113,10 @@ k = 0
 
 experiment_success_cnt = 0
 experiment_fail_cnt = 0
+
+if change_q_start:
+    random_prof = NoiseProfiler(num_features=2, noise_type=NoiseType.UNIFORM, seed=experiment_seed, logger=logger)
+
 # Preparing experiment queue
 for rho in rho_list:
     
@@ -118,8 +125,16 @@ for rho in rho_list:
     else:
         noise_params["rho"] = rho
     for i in range(epoch):
+        # Setting q starting value
+        q = q_start.copy()
+        if change_q_start:
+            # With these little changes, the robot camera still starts with the features in the view
+            random_values = random_prof.getNoise() # Get uniform random values from 0 to 1
+            q[0] = q_start[0] + 2 * (random_values[0] - 1) * (np.pi/18) # The first joint goes from -10 to 10 degrees
+            q[1] = q_start[1] + 2 * (random_values[1] - 1) * (np.pi/9) # While the second joint goes from -20 to 20 degrees
+        
         # Noise generation
-        noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, logger=logger, noise_params=noise_params)
+        noise_prof = NoiseProfiler(num_features=len(desired_f), noise_type=noise_type, seed=seed, logger=logger, noise_hold=noise_hold, noise_hold_cnt=int(noise_hold_time/dt) , noise_params=noise_params)
         if seed is not None:
             seed = seed + 1
 
