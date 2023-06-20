@@ -1,5 +1,5 @@
 {
-    "log_level" : "DEBUG",
+    "log_level" : "INFO",
     "experiments": {
         "dt": 0.05,
         "t_max": 15,
@@ -12,13 +12,13 @@
         "seed": 12345
     },
     "estimator": {
-        "method": "GMCKF",
+        "method": "MCKF",
         "estimator_params": {
             "initial_guess": true, 
-            "kernel_bw": 0.1, 
+            "kernel_bw": 10, 
             "fpi_threshold": 0.1, 
             "fpi_epoch_max": 1000,
-            "annealing": true
+            "annealing": false
         }
     },
     "noise": {
@@ -28,7 +28,7 @@
             "gamma": 1,
             "delta": 0
         },
-        "hold": true,
+        "hold": false,
         "hold_time": 0.5,
         "seed": 123456
     }

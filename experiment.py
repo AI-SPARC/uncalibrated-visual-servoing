@@ -276,24 +276,22 @@ class Experiment:
                     Cy = np.diag([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m)])
                     
                     try:
-                        # If extremely large noises, Cy may be nearly singular, resulting in numerical problems
-                        # So we check the following conditions to choose if only the prediction step will happen
-                        #if (np.linalg.det(Cy) == 0.0):
-                        #    raise np.linalg.LinAlgError('Singular matrix')
                         #Cy_inv = Cy.T @ np.linalg.inv(Cy @ Cy.T + 0.001**2 * np.eye(m))
                         Cy_inv = np.linalg.inv(Cy + 0.001**2 * np.eye(m))
-                        R_hat = Br @ Cy_inv @ Br.T
+                        R_hat = Br @ Cy_inv @ Br.T                    
+
+                        S = H @ P @ H.T + R_hat
+                        #S_inv = S.T @ np.linalg.inv(S @ S.T + 0.001**2 * np.eye(m))
+                        S_inv = np.linalg.inv(S)
+                        K = P @ H.T @ S_inv
+
+                        #self.logger.debug(K)
+                        #Cy_inv = np.linalg.inv(Cy)
+
+                        X = X + K @ (Z - H @ X)
                     except np.linalg.LinAlgError:
-                        self.logger.warning("Cy is singular, skipping correction step")
+                        self.logger.warning("Cy is singular, skipping control step")
                         skip_correction = True
-                        break
-
-                    S = H @ P @ H.T + R_hat
-                    #S_inv = S.T @ np.linalg.inv(S @ S.T + 0.001**2 * np.eye(m))
-                    S_inv = np.linalg.inv(S)
-                    K = P @ H.T @ S_inv
-
-                    X = X + K @ (Z - H @ X)
                
                 if not skip_correction:
                     P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T
@@ -305,9 +303,13 @@ class Experiment:
             
             try:
                 # IBVS Control Law
+                kappa = np.ones(error.shape)
+                if self.method == Method.GMCKF:
+                    kappa = np.array([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m)])
+                
                 #dp = - self.ibvs_gain * np.linalg.pinv(J_image) @ error.reshape((m, 1))
                 #dx = np.kron(np.eye(2), self.robot.getCameraRotation().T) @ dp
-                dq = - self.ibvs_gain * np.linalg.pinv(J_feature) @ error.reshape((m, 1))
+                dq = - self.ibvs_gain * np.linalg.pinv(J_feature) @ (kappa.reshape((m, 1)) * error.reshape((m, 1)))
             except:
                 experiment_status = ExperimentStatus.FAIL
                 self.logger.error('Experiment failed')

@@ -1,7 +1,7 @@
 clear
 clc
 
-data = readtable("data/23_05_2023_13_00_45/results.csv");
+data = readtable("data/seed_imcckf_annealing/results.csv");
 
 %% Getting stats
 % Getting list of rhos
@@ -11,6 +11,7 @@ rhos = unique(data.rho);
 ise_mean = zeros(size(rhos));
 ise_std = zeros(size(rhos));
 iae_mean = zeros(size(rhos));
+iae_median = zeros(size(rhos));
 iae_std = zeros(size(rhos));
 itae_mean = zeros(size(rhos));
 itae_median = zeros(size(rhos));
@@ -86,12 +87,12 @@ for i = 1:size(rhos)
     ise_mean(i) = mean(ise_experiments);
     ise_std(i) = std(ise_experiments);
     iae_mean(i) = mean(iae_experiments);
+    iae_median(i) = median(iae_experiments);
     iae_std(i) = std(iae_experiments);
     itae_mean(i) = mean(itae_experiments);
     itae_median(i) = median(itae_experiments);
     itae_std(i) = std(itae_experiments);
 end
-
 %% Ploting
-%plot(rhos, itae_mean)
-errorbar(rhos, iae_mean, iae_std, 'LineWidth', 2)
+%plot(rhos, iae_mean)
+errorbar(rhos, itae_mean, itae_std, 'LineWidth', 2)
