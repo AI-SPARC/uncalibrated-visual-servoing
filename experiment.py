@@ -32,6 +32,7 @@ class Experiment:
         if self.method == Method.KF or self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
             
             self.initial_guess = method_params['initial_guess']
+            self.estimate_Jinv = method_params['estimate_Jinv']
 
             if self.method == Method.MCKF or self.method == Method.IMCCKF or self.method == Method.GMCKF:
                 self.kernel_bw = method_params['kernel_bw']
@@ -52,15 +53,18 @@ class Experiment:
 
         m = len(self.desired_f)
         n = 6
+        if self.method != Method.ANALYTICAL and self.estimate_Jinv:
+            m = 6
+            n = len(self.desired_f)
 
-        f = np.zeros(m)
+        f = np.zeros(len(self.desired_f))
         f_old = None
-        noise = np.zeros(m)
+        noise = np.zeros(len(self.desired_f))
 
         error_log = np.zeros((int(self.t_max/self.t_s), len(f)))
         f_log = np.zeros((int(self.t_max/self.t_s), len(f)))
         q_log = np.zeros((int(self.t_max/self.t_s), 6))
-        camera_log = np.zeros((int(self.t_max/self.t_s), n))
+        camera_log = np.zeros((int(self.t_max/self.t_s), 6))
         t_log = np.zeros(int(self.t_max/self.t_s))
         desired_f_log = np.zeros((int(self.t_max/self.t_s), len(f)))
         noise_log = np.zeros((int(self.t_max/self.t_s), len(f)))
@@ -75,10 +79,9 @@ class Experiment:
             Q = np.eye(m*n)
             R = np.eye(m)
 
-            dp = np.zeros((n, 1))
-            dq = np.zeros((n, 1))
+            dp = np.zeros((6, 1))
+            dq = np.zeros((6, 1))
 
-            first_run = True
             dp_real = np.zeros(6)
             old_pose = self.robot.computePose(recalculate_fkine=True)
             old_q = self.robot.getJointsPos().copy()
@@ -92,7 +95,7 @@ class Experiment:
                     self.logger.error(e) # only print problem in hough circles, but continue with older f
 
                 # Calculate image jacobian
-                J_image = np.zeros((m, n)) # need to find
+                J_image = np.zeros((len(f), 6)) # need to find
                 Z_camera = self.robot.computeZ(4)
                 focal = resolution[0]/(2*np.tan(0.5*np.deg2rad(self.robot.perspective_angle)))
                 for i in range(0, int(len(f)/2)):
@@ -111,8 +114,18 @@ class Experiment:
 
                 J_feature = J_image @ np.kron(np.eye(2), self.robot.getCameraRotation().T) @ self.robot.jacobian()
 
-                X = J_feature.reshape((m*n, 1))
-                #X = J_image.reshape((m*n, 1))
+                if self.estimate_Jinv == False:
+                    X = J_feature.reshape((m*n, 1))
+                else:
+                    try:
+                        X = np.linalg.pinv(J_feature).reshape((m*n, 1))
+                    except:
+                        experiment_status = ExperimentStatus.FAIL
+                        self.logger.error('Experiment failed')
+                        self.robot.stop()
+
+                        return experiment_status, t_log, error_log, q_log, f_log, desired_f_log, camera_log, noise_log, kernel_bw_log
+
             else:
                 X = np.random.default_rng().random((m*n, 1))
 
@@ -167,25 +180,20 @@ class Experiment:
                 P = P + Q
 
                 # Measurement
-                Z[0,0] = f[0] - f_old[0]
-                Z[1,0] = f[1] - f_old[1]
-                Z[2,0] = f[2] - f_old[2]
-                Z[3,0] = f[3] - f_old[3]
-                Z[4,0] = f[4] - f_old[4]
-                Z[5,0] = f[5] - f_old[5]
-                Z[6,0] = f[6] - f_old[6]
-                Z[7,0] = f[7] - f_old[7]
-
                 new_pose = self.robot.computePose(recalculate_fkine=True)
                 dp_real = new_pose - old_pose
                 dq_real = self.robot.getJointsPos() - old_q
-                #print(dq_real)
-                if first_run:
-                    first_run = False
-                else:
-                    #H = np.kron(np.eye(m), dp.ravel())
-                    #H = np.kron(np.eye(m), dp_real)
+
+                df = f - f_old
+
+                if self.estimate_Jinv == False:
+                    Z[:,0] = df
+                    
                     H = np.kron(np.eye(m), dq.ravel())
+                else:
+                    Z[:,0] = dq.ravel()
+                
+                    H = np.kron(np.eye(m), df)
 
                 skip_correction = False
                 if self.method == Method.KF:
@@ -218,16 +226,12 @@ class Experiment:
                         
                         Cx = np.diag([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m*n)])
                         Cy = np.diag([gaussianKernel(e[i, 0], kernel_bw) for i in range(m*n, m*n + m)])
-                        #print(np.linalg.det(Cx))
 
                         ## Compute optimal gain
                         P_hat = Bp @ np.linalg.inv(Cx) @ Bp.T
                         try:
                             # If extremely large noises, Cy may be nearly singular, resulting in numerical problems
                             # So we check the following conditions to choose if only the prediction step will happen
-                            #if (np.linalg.det(Cy) == 0.0):
-                            #    raise np.linalg.LinAlgError('Singular matrix')
-                            #Cy_inv = Cy.T @ np.linalg.inv(Cy @ Cy.T + 0.001**2 * np.eye(m))
                             Cy_inv = np.linalg.inv(Cy)
                             R_hat = Br @ Cy_inv @ Br.T
                         except np.linalg.LinAlgError:
@@ -260,7 +264,6 @@ class Experiment:
                     
                     Cy = gaussianKernel(norm_innov, kernel_bw)
                     R_e = Cy * H @ P @ H.T + R
-                    #K = Cy @ np.linalg.inv(np.linalg.inv(P) + Cy @ H.T @ np.linalg.inv(R) @ H) @ H.T @ np.linalg.inv(R)
                     K = Cy * P @ H.T @ np.linalg.inv(R_e)
                     X = X + K @ innov
                 elif self.method == Method.GMCKF:
@@ -276,17 +279,12 @@ class Experiment:
                     Cy = np.diag([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m)])
                     
                     try:
-                        #Cy_inv = Cy.T @ np.linalg.inv(Cy @ Cy.T + 0.001**2 * np.eye(m))
                         Cy_inv = np.linalg.inv(Cy + 0.001**2 * np.eye(m))
                         R_hat = Br @ Cy_inv @ Br.T                    
 
                         S = H @ P @ H.T + R_hat
-                        #S_inv = S.T @ np.linalg.inv(S @ S.T + 0.001**2 * np.eye(m))
                         S_inv = np.linalg.inv(S)
                         K = P @ H.T @ S_inv
-
-                        #self.logger.debug(K)
-                        #Cy_inv = np.linalg.inv(Cy)
 
                         X = X + K @ (Z - H @ X)
                     except np.linalg.LinAlgError:
@@ -295,28 +293,26 @@ class Experiment:
                
                 if not skip_correction:
                     P = (np.eye(m*n) - K @ H) @ P @ (np.eye(m*n) - K @ H).T + K @ R @ K.T
-                    #P = (np.eye(m*n) - K @ H) @ P
-                #J_image = X.reshape((m, n))
+
                 J_feature = X.reshape((m, n))
 
             error = f - self.desired_f
             
             try:
-                # IBVS Control Law
-                kappa = np.ones(error.shape)
-                if self.method == Method.GMCKF:
-                    kappa = np.array([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m)])
-                
-                #dp = - self.ibvs_gain * np.linalg.pinv(J_image) @ error.reshape((m, 1))
-                #dx = np.kron(np.eye(2), self.robot.getCameraRotation().T) @ dp
-                dq = - self.ibvs_gain * np.linalg.pinv(J_feature) @ (kappa.reshape((m, 1)) * error.reshape((m, 1)))
+                if self.method != Method.ANALYTICAL and self.estimate_Jinv:
+                    dq = - self.ibvs_gain * J_feature @ error.reshape((n, 1))
+                else:    
+                    # IBVS Control Law
+                    kappa = np.ones(error.shape)
+                    if self.method == Method.GMCKF:
+                        kappa = np.array([gaussianKernel(e[i, 0], kernel_bw) for i in range(0, m)])
+                    dq = - self.ibvs_gain * np.linalg.pinv(J_feature) @ (kappa.reshape((m, 1)) * error.reshape((m, 1)))
             except:
                 experiment_status = ExperimentStatus.FAIL
                 self.logger.error('Experiment failed')
                 break
 
             # Invkine
-            #dq = np.linalg.pinv(self.robot.jacobian()) @ dx
             new_q = self.robot.getJointsPos() + dq.ravel() * self.t_s
 
             # Logging

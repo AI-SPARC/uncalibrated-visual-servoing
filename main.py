@@ -104,9 +104,13 @@ with open("config.json", "r", encoding="utf-8") as config_file:
 rho_list = np.linspace(0, 0.2, 12)
 if noise_type == NoiseType.ALPHA_STABLE:
     rho_list = np.linspace(1, 2, 12)
+
+#### GAUSSIAN
+rho_list = [0]
+#### GAUSSIAN
+
 experiments = []
 
-first_experiment = True
 file_header = True
 
 k = 0
@@ -195,9 +199,7 @@ for rho in rho_list:
     
         dataframe.to_csv(os.path.join(directory_path, 'results.csv'), mode='a', index=False, header=file_header)
 
-        if first_experiment:
-            file_header = False
-            first_experiment = False
+        file_header = False # Removes file header for the next experiments
 
         k = k+1
 
