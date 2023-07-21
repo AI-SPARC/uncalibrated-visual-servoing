@@ -1,0 +1,5 @@
+numpy==1.25.1
+opencv-python==4.8.0.74
+pandas==2.0.3
+cbor==1.0.0
+zmq

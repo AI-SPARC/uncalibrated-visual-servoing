@@ -9,3 +9,30 @@ Some advantages of using cameras as sensor devices on feedback systems are the f
 The UVS scenarios were simulated using the CoppeliaSim robotics simulator, which implements the Bullet physics engine. That tool allows us to model a robot, control its joints, place cameras attached to or outside the robot structure, and set different parameters on physics, image acquisition, and environment. CoppeliaSim provides an Application Programming Interface (API) in various programming languages to implement custom control algorithms. This study used the Python programming language since its numerical and scientific libraries offer fast prototyping for the discussed techniques.
 
 A Universal Robots UR10 was placed in the simulation using one of the predefined models in CoppeliaSim. That robot was chosen by a correlated study, which described a UVS system using MCKF . Using the standard DH formulation and link sizes obtained from the official tech specifications. The robot joints are configured in Kinematic mode on the simulator to receive joint position commands. The regular API that CoppeliaSim provides functions to read the joint positions directly, simulating an absolute encoder response.
+
+## Running
+
+Considering that you already have a python and pip install, run the following scripts:
+
+* Create and source an isolated python virtual environemnt 
+
+```
+$ python -m venv ./virtualenv
+$ source ./virtualenv/bin/activate
+```
+
+* Install required packages
+
+```
+$ pip install -r requirements.txt
+```
+
+* Open a CoppeliaSim scenario from the *scenarios* folder 
+
+* Setup simulation configuration file (*config.json*)
+
+* Run experiments batch
+
+```
+$ python main.py
+```
