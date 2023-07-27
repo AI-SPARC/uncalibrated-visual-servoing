@@ -191,7 +191,7 @@ class Experiment:
                     
                     H = np.kron(np.eye(m), dq.ravel())
                 else:
-                    Z[:,0] = dq.ravel()
+                    Z[:,0] = dq_real.ravel()
                 
                     H = np.kron(np.eye(m), df)
 
