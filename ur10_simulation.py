@@ -1,6 +1,6 @@
 import numpy as np
 import utils
-from zmqRemoteApi import RemoteAPIClient
+from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 from time import sleep
 import logging
 
